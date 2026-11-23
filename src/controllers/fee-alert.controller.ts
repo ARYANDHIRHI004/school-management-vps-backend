@@ -12,7 +12,8 @@ import {
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { computeDueStatus, outstandingPaise } from "../utils/fees.js";
-import { createId } from "../utils/ids.js";
+import { createFeePaymentAlert } from "../utils/fee-alert-create.js";
+import { paiseToInrLabel } from "../utils/msg91.js";
 import { getParamId } from "../utils/request.js";
 
 type AuthUser = { id: string };
@@ -76,6 +77,7 @@ export const createFeeAlert = asyncHandler(async (req: Request, res: Response) =
     title: string;
     message: string;
     scheduledFor?: string;
+    sendSms?: boolean;
   };
 
   if (body.dueId) {
@@ -89,22 +91,17 @@ export const createFeeAlert = asyncHandler(async (req: Request, res: Response) =
     }
   }
 
-  const id = createId();
-  const [row] = await db
-    .insert(feePaymentAlerts)
-    .values({
-      id,
-      studentId: body.studentId,
-      dueId: body.dueId,
-      alertType: body.alertType,
-      severity: body.severity,
-      status: "unread",
-      title: body.title,
-      message: body.message,
-      scheduledFor: body.scheduledFor,
-      createdByUserId: user.id,
-    })
-    .returning();
+  const row = await createFeePaymentAlert({
+    studentId: body.studentId,
+    dueId: body.dueId,
+    alertType: body.alertType,
+    severity: body.severity,
+    title: body.title,
+    message: body.message,
+    scheduledFor: body.scheduledFor,
+    createdByUserId: user.id,
+    sendSms: body.sendSms,
+  });
 
   res.status(201).json({ success: true, data: row });
 });
@@ -154,6 +151,7 @@ export const generateOverdueFeeAlerts = asyncHandler(
       );
 
     let created = 0;
+    let smsSent = 0;
 
     for (const due of dues) {
       const outstanding = outstandingPaise(
@@ -188,24 +186,25 @@ export const generateOverdueFeeAlerts = asyncHandler(
 
       if (existingAlert) continue;
 
-      await db.insert(feePaymentAlerts).values({
-        id: createId(),
+      const message = `Fee due ${due.dueNumber} is overdue. Outstanding: ${paiseToInrLabel(outstanding)}. Due date: ${due.dueDate}.`;
+      const row = await createFeePaymentAlert({
         studentId: due.studentId,
         dueId: due.id,
         alertType: "overdue",
         severity: "warning",
-        status: "unread",
         title: "Overdue school fees",
-        message: `Fee due ${due.dueNumber} is overdue. Outstanding: ${outstanding} paise. Due date: ${due.dueDate}.`,
+        message,
         createdByUserId: user.id,
       });
       created += 1;
+      if (row.smsStatus === "sent") smsSent += 1;
     }
 
     res.json({
       success: true,
       data: {
         alertsCreated: created,
+        smsSent,
       },
     });
   },
@@ -234,6 +233,7 @@ export const generateDueReminders = asyncHandler(
       );
 
     let created = 0;
+    let smsSent = 0;
 
     for (const due of dues) {
       const outstanding = outstandingPaise(
@@ -256,25 +256,26 @@ export const generateDueReminders = asyncHandler(
 
       if (existingAlert) continue;
 
-      await db.insert(feePaymentAlerts).values({
-        id: createId(),
+      const message = `Fee due ${due.dueNumber} is due on ${due.dueDate}. Outstanding: ${paiseToInrLabel(outstanding)}.`;
+      const row = await createFeePaymentAlert({
         studentId: due.studentId,
         dueId: due.id,
         alertType: "due_reminder",
         severity: "info",
-        status: "unread",
         title: "Upcoming fee due",
-        message: `Fee due ${due.dueNumber} is due on ${due.dueDate}. Outstanding: ${outstanding} paise.`,
+        message,
         scheduledFor: due.dueDate,
         createdByUserId: user.id,
       });
       created += 1;
+      if (row.smsStatus === "sent") smsSent += 1;
     }
 
     res.json({
       success: true,
       data: {
         alertsCreated: created,
+        smsSent,
         daysAhead,
       },
     });

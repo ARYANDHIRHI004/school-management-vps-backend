@@ -4,7 +4,6 @@ import { db } from "../db/index.js";
 import {
   feeCollectionAllocations,
   feeCollections,
-  feePaymentAlerts,
   feeReceipts,
   studentFeeDues,
 } from "../db/schema/fees.js";
@@ -17,7 +16,9 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { computeDueStatus, outstandingPaise } from "../utils/fees.js";
 import { createDocumentNumber } from "../utils/document-number.js";
+import { createFeePaymentAlert } from "../utils/fee-alert-create.js";
 import { createId } from "../utils/ids.js";
+import { paiseToInrLabel } from "../utils/msg91.js";
 import { getParamId } from "../utils/request.js";
 
 type AuthUser = { id: string };
@@ -248,17 +249,16 @@ export const createFeeCollection = asyncHandler(
         issuedByUserId: user.id,
       });
 
-      await tx.insert(feePaymentAlerts).values({
-        id: createId(),
-        studentId: body.studentId,
-        alertType: "payment_received",
-        severity: "info",
-        status: "unread",
-        title: "Fee payment recorded",
-        message: `A fee payment of ${body.amountPaise} paise was recorded. Receipt ${receiptNumber}.`,
-        createdByUserId: user.id,
-      });
     });
+
+  await createFeePaymentAlert({
+    studentId: body.studentId,
+    alertType: "payment_received",
+    severity: "info",
+    title: "Fee payment recorded",
+    message: `A fee payment of ${paiseToInrLabel(body.amountPaise)} was recorded. Receipt ${receiptNumber}.`,
+    createdByUserId: user.id,
+  });
 
     const [collection] = await db
       .select()

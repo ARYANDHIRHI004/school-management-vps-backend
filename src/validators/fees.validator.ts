@@ -122,6 +122,7 @@ export const createFeeAlertSchema = z.object({
   title: z.string().min(1).max(150),
   message: z.string().min(1).max(2000),
   scheduledFor: optionalDate,
+  sendSms: z.coerce.boolean().optional(),
 });
 
 export const feeAlertListQuerySchema = paginationQuerySchema.extend({

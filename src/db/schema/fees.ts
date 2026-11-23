@@ -52,6 +52,13 @@ export const feeAlertStatusEnum = pgEnum("fee_alert_status", [
   "dismissed",
 ]);
 
+export const feeAlertSmsStatusEnum = pgEnum("fee_alert_sms_status", [
+  "pending",
+  "sent",
+  "failed",
+  "skipped",
+]);
+
 export const feeHeads = pgTable(
   "fee_heads",
   {
@@ -216,6 +223,10 @@ export const feePaymentAlerts = pgTable(
     }),
     readAt: timestamp("read_at"),
     dismissedAt: timestamp("dismissed_at"),
+    smsStatus: feeAlertSmsStatusEnum("sms_status").default("pending").notNull(),
+    smsMessageId: text("sms_message_id"),
+    smsError: text("sms_error"),
+    smsSentAt: timestamp("sms_sent_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [

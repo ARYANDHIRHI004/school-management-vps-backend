@@ -21,6 +21,17 @@ const envSchema = z.object({
         .filter(Boolean),
     ),
   UPLOAD_DIR: z.string().default("uploads"),
+  MSG91_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  MSG91_AUTH_KEY: z.string().optional(),
+  MSG91_SENDER_ID: z.string().optional(),
+  MSG91_DEFAULT_COUNTRY_CODE: z.string().default("91"),
+  MSG91_FLOW_ID_DUE_REMINDER: z.string().optional(),
+  MSG91_FLOW_ID_OVERDUE: z.string().optional(),
+  MSG91_FLOW_ID_PAYMENT: z.string().optional(),
+  MSG91_FLOW_ID_CUSTOM: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

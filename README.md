@@ -622,7 +622,20 @@ Receipts are created automatically when a collection is posted (`receiptNumber` 
 
 **Alert types:** `due_reminder` | `overdue` | `payment_received` | `custom`  
 **Severity:** `info` | `warning` | `critical`  
-**Status:** `unread` | `read` | `dismissed`
+**Status:** `unread` | `read` | `dismissed`  
+**SMS (`smsStatus` on each alert):** `pending` | `sent` | `failed` | `skipped`
+
+When `MSG91_ENABLED=true`, creating an alert also sends SMS to `students.phone` via [MSG91 Flow API](https://docs.msg91.com/sms). Configure `.env` (`MSG91_AUTH_KEY`, `MSG91_SENDER_ID`, flow IDs). Map template variables in your MSG91 flow:
+
+| API variable | Content |
+|--------------|---------|
+| `VAR1` | Student full name |
+| `VAR2` | Alert title |
+| `VAR3` | Alert message (max ~480 chars) |
+
+Flow IDs: `MSG91_FLOW_ID_DUE_REMINDER`, `MSG91_FLOW_ID_OVERDUE`, `MSG91_FLOW_ID_PAYMENT`, optional `MSG91_FLOW_ID_CUSTOM`.
+
+Generate endpoints return `smsSent` count when applicable.
 
 **Manual alert body**
 
@@ -633,7 +646,8 @@ Receipts are created automatically when a collection is posted (`receiptNumber` 
   "alertType": "custom",
   "severity": "warning",
   "title": "Fee counter open",
-  "message": "Please visit the school office before 15th."
+  "message": "Please visit the school office before 15th.",
+  "sendSms": true
 }
 ```
 
@@ -673,6 +687,7 @@ See `.env.example`:
 - `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
 - `CORS_ORIGINS` — comma-separated frontend origins (credentials enabled)
 - `UPLOAD_DIR` — default `uploads`
+- `MSG91_*` — SMS for fee alerts (see `.env.example`)
 
 ---
 
