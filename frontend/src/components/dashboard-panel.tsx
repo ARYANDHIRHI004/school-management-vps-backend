@@ -10,7 +10,11 @@ import { useHealthQuery } from "@/hooks/queries/use-health-query";
 import { useSessionQuery } from "@/hooks/queries/use-session-query";
 import { useAuthStore } from "@/stores/auth-store";
 
-export function DashboardPanel() {
+type DashboardPanelProps = {
+  portal?: "admin" | "student";
+};
+
+export function DashboardPanel({ portal = "student" }: DashboardPanelProps) {
   const { data: session, isPending } = useSessionQuery();
   const user = useAuthStore((s) => s.user);
   const signOut = useSignOutMutation();
@@ -48,7 +52,7 @@ export function DashboardPanel() {
   return (
     <AuthCard className="max-w-lg">
       <h1 className="font-[family-name:var(--font-heading)] text-2xl font-extrabold text-[#0F2544]">
-        Dashboard
+        {portal === "admin" ? "Admin dashboard" : "Student dashboard"}
       </h1>
       <p className="mt-1 text-sm text-gray-600 font-[family-name:var(--font-body)]">
         Signed in as {displayEmail}{" "}

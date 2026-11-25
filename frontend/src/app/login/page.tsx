@@ -7,7 +7,7 @@ export default function LoginPage() {
     <AuthPortalShell
       variant="login"
       title="Welcome back to your learning journey"
-      subtitle="Access fee statements, notices, and academic records. Students need an admitted profile linked to this account."
+      subtitle="Choose Admin or Student, then sign in. The server assigns your role; we verify it matches your selection before opening your portal."
       illustration="/images/illustrations/undraw_education_3vwh.svg"
     >
       <AuthRedirectIfSession />

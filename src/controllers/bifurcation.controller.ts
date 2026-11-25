@@ -17,12 +17,13 @@ import {
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createId } from "../utils/ids.js";
+import { getValidatedBody, getValidatedQuery } from "../utils/request.js";
 
 type AuthUser = { id: string };
 
 export const searchBifurcations = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       page: number;
       limit: number;
       studentId?: string;
@@ -32,7 +33,7 @@ export const searchBifurcations = asyncHandler(
       fromDate?: string;
       toDate?: string;
       search?: string;
-    };
+    }>(req);
 
     const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 
@@ -111,7 +112,7 @@ export const searchBifurcations = asyncHandler(
 
 export const createBifurcation = asyncHandler(async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  const body = req.body as {
+  const body = getValidatedBody<{
     studentId: string;
     fromClass?: string;
     fromSection?: string;
@@ -121,7 +122,7 @@ export const createBifurcation = asyncHandler(async (req: Request, res: Response
     toStream?: string;
     effectiveDate: string;
     reason?: string;
-  };
+  }>(req);
 
   const [student] = await db
     .select()

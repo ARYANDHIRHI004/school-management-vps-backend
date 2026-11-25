@@ -1,28 +1,43 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import type { Request, Response } from "express";
 import { db } from "../db/index.js";
-import { studentAdmissions, students } from "../db/schema/students.js";
+import {
+  studentAdmissions,
+  studentRegistrations,
+  students,
+} from "../db/schema/students.js";
 import {
   assertStudentAccess,
   resolveScopedStudentId,
 } from "../utils/student-access.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
+import {
+  fetchAdmissionWithRelations,
+  admissionWithRelationsSelect,
+  toAdmissionDto,
+  type AdmissionWithRelationsRow,
+} from "../utils/admission-enrichment.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import {
+  getParamId,
+  getValidatedBody,
+  getValidatedQuery,
+} from "../utils/request.js";
 import { assertApprovedRegistration } from "../utils/student-portal-access.js";
 import { provisionStudentPortalLogin } from "../utils/student-portal-provision.js";
 
 type AuthUser = { id: string };
 
 export const listAdmissions = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     status?: "active" | "completed" | "cancelled";
     studentId?: string;
-  };
+    search?: string;
+  }>(req);
 
   const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 
@@ -33,6 +48,18 @@ export const listAdmissions = asyncHandler(async (req: Request, res: Response) =
   if (query.status) {
     filters.push(eq(studentAdmissions.status, query.status));
   }
+  if (query.search) {
+    const pattern = `%${query.search}%`;
+    filters.push(
+      or(
+        ilike(studentAdmissions.admissionNumber, pattern),
+        ilike(students.firstName, pattern),
+        ilike(students.lastName, pattern),
+        ilike(studentAdmissions.className, pattern),
+        ilike(studentRegistrations.registrationNumber, pattern),
+      )!,
+    );
+  }
 
   const where = filters.length ? and(...filters) : undefined;
   const offset = (query.page - 1) * query.limit;
@@ -40,11 +67,21 @@ export const listAdmissions = asyncHandler(async (req: Request, res: Response) =
   const [totalRow] = await db
     .select({ total: count() })
     .from(studentAdmissions)
+    .leftJoin(students, eq(studentAdmissions.studentId, students.id))
+    .leftJoin(
+      studentRegistrations,
+      eq(studentAdmissions.registrationId, studentRegistrations.id),
+    )
     .where(where);
 
   const rows = await db
-    .select()
+    .select(admissionWithRelationsSelect)
     .from(studentAdmissions)
+    .leftJoin(students, eq(studentAdmissions.studentId, students.id))
+    .leftJoin(
+      studentRegistrations,
+      eq(studentAdmissions.registrationId, studentRegistrations.id),
+    )
     .where(where)
     .orderBy(desc(studentAdmissions.createdAt))
     .limit(query.limit)
@@ -52,7 +89,7 @@ export const listAdmissions = asyncHandler(async (req: Request, res: Response) =
 
   res.json({
     success: true,
-    data: rows,
+    data: rows.map((row) => toAdmissionDto(row as AdmissionWithRelationsRow)),
     meta: {
       page: query.page,
       limit: query.limit,
@@ -63,21 +100,16 @@ export const listAdmissions = asyncHandler(async (req: Request, res: Response) =
 
 export const getAdmission = asyncHandler(async (req: Request, res: Response) => {
   const id = getParamId(req);
-  const [row] = await db
-    .select()
-    .from(studentAdmissions)
-    .where(eq(studentAdmissions.id, id))
-    .limit(1);
+  const enriched = await fetchAdmissionWithRelations(id);
+  if (!enriched) throw new ApiError(404, "Admission not found");
+  await assertStudentAccess(req, enriched.studentId);
 
-  if (!row) throw new ApiError(404, "Admission not found");
-  await assertStudentAccess(req, row.studentId);
-
-  res.json({ success: true, data: row });
+  res.json({ success: true, data: enriched });
 });
 
 export const createAdmission = asyncHandler(async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  const body = req.body as {
+  const body = getValidatedBody<{
     studentId: string;
     registrationId?: string;
     admissionDate: string;
@@ -87,7 +119,7 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
     stream?: string;
     academicYear?: string;
     portalAccess?: { email: string; password: string; name?: string };
-  };
+  }>(req);
 
   const [student] = await db
     .select()
@@ -134,11 +166,6 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
       .where(eq(students.id, body.studentId));
   });
 
-  const [row] = await db
-    .select()
-    .from(studentAdmissions)
-    .where(eq(studentAdmissions.id, id));
-
   let portal:
     | Awaited<ReturnType<typeof provisionStudentPortalLogin>>
     | undefined;
@@ -152,10 +179,12 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
     });
   }
 
+  const enriched = await fetchAdmissionWithRelations(id);
+
   res.status(201).json({
     success: true,
     data: {
-      admission: row,
+      admission: enriched,
       portal: portal
         ? { userId: portal.user.id, email: portal.user.email }
         : null,
@@ -165,13 +194,13 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
 
 export const updateAdmission = asyncHandler(async (req: Request, res: Response) => {
   const id = getParamId(req);
-  const body = req.body as {
+  const body = getValidatedBody<{
     status?: "active" | "completed" | "cancelled";
     className?: string;
     section?: string;
     stream?: string;
     academicYear?: string;
-  };
+  }>(req);
 
   const [existing] = await db
     .select()
@@ -181,7 +210,7 @@ export const updateAdmission = asyncHandler(async (req: Request, res: Response) 
 
   if (!existing) throw new ApiError(404, "Admission not found");
 
-  const [updated] = await db
+  await db
     .update(studentAdmissions)
     .set({
       status: body.status ?? existing.status,
@@ -190,24 +219,28 @@ export const updateAdmission = asyncHandler(async (req: Request, res: Response) 
       stream: body.stream ?? existing.stream,
       academicYear: body.academicYear ?? existing.academicYear,
     })
-    .where(eq(studentAdmissions.id, id))
-    .returning();
-
-  if (!updated) {
-    throw new ApiError(404, "Admission not found");
-  }
+    .where(eq(studentAdmissions.id, id));
 
   if (body.className || body.section || body.stream || body.academicYear) {
-    await db
-      .update(students)
-      .set({
-        className: updated.className,
-        section: updated.section,
-        stream: updated.stream,
-        academicYear: updated.academicYear ?? undefined,
-      })
-      .where(eq(students.id, existing.studentId));
+    const [updated] = await db
+      .select()
+      .from(studentAdmissions)
+      .where(eq(studentAdmissions.id, id))
+      .limit(1);
+
+    if (updated) {
+      await db
+        .update(students)
+        .set({
+          className: updated.className,
+          section: updated.section,
+          stream: updated.stream,
+          academicYear: updated.academicYear ?? undefined,
+        })
+        .where(eq(students.id, existing.studentId));
+    }
   }
 
-  res.json({ success: true, data: updated });
+  const enriched = await fetchAdmissionWithRelations(id);
+  res.json({ success: true, data: enriched });
 });

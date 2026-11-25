@@ -5,5 +5,5 @@ dist
 !.env.example
 *.log
 .DS_Store
-drizzle/meta
+# Keep drizzle/meta in git so `drizzle-kit generate` stays in sync
 uploads/

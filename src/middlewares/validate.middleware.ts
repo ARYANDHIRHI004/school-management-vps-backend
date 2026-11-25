@@ -18,7 +18,18 @@ export function validate(schemas: ValidationSchemas) {
           new ApiError(400, "Validation failed", result.error.flatten()),
         );
       }
-      req[part] = result.data;
+      if (part === "query") {
+        req.validatedQuery = result.data;
+      } else if (part === "params") {
+        req.validatedParams = result.data;
+      } else {
+        req.validatedBody = result.data;
+        try {
+          req.body = result.data;
+        } catch {
+          /* Express 5+ may expose read-only `body` on some setups */
+        }
+      }
     }
     next();
   };

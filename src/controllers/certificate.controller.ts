@@ -15,17 +15,21 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import {
+  getParamId,
+  getValidatedBody,
+  getValidatedQuery,
+} from "../utils/request.js";
 
 type AuthUser = { id: string };
 
 export const listTransferCertificates = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       page: number;
       limit: number;
       studentId?: string;
-    };
+    }>(req);
     const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 
     const filters = [];
@@ -52,8 +56,13 @@ export const listTransferCertificates = asyncHandler(
         mimeType: transferCertificates.mimeType,
         fileSize: transferCertificates.fileSize,
         createdAt: transferCertificates.createdAt,
+        studentFirstName: students.firstName,
+        studentLastName: students.lastName,
+        studentAdmissionNumber: students.admissionNumber,
+        studentRollNumber: students.rollNumber,
       })
       .from(transferCertificates)
+      .innerJoin(students, eq(transferCertificates.studentId, students.id))
       .where(where)
       .orderBy(desc(transferCertificates.createdAt))
       .limit(query.limit)
@@ -61,7 +70,24 @@ export const listTransferCertificates = asyncHandler(
 
     res.json({
       success: true,
-      data: rows,
+      data: rows.map((row) => ({
+        id: row.id,
+        certificateNumber: row.certificateNumber,
+        studentId: row.studentId,
+        issueDate: row.issueDate,
+        reason: row.reason,
+        fileName: row.fileName,
+        mimeType: row.mimeType,
+        fileSize: row.fileSize,
+        createdAt: row.createdAt,
+        student: {
+          id: row.studentId,
+          firstName: row.studentFirstName,
+          lastName: row.studentLastName,
+          admissionNumber: row.studentAdmissionNumber,
+          rollNumber: row.studentRollNumber,
+        },
+      })),
       meta: {
         page: query.page,
         limit: query.limit,
@@ -77,12 +103,12 @@ export const uploadTransferCertificate = asyncHandler(
     const file = req.file;
     if (!file) throw new ApiError(400, "Certificate file is required");
 
-    const body = req.body as {
+    const body = getValidatedBody<{
       studentId: string;
       issueDate: string;
       reason?: string;
       certificateNumber?: string;
-    };
+    }>(req);
 
     const [student] = await db
       .select()
@@ -147,11 +173,11 @@ export const downloadTransferCertificate = asyncHandler(
 
 export const listLeavingCertificates = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       page: number;
       limit: number;
       studentId?: string;
-    };
+    }>(req);
     const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 
     const filters = [];
@@ -179,8 +205,13 @@ export const listLeavingCertificates = asyncHandler(
         mimeType: leavingCertificates.mimeType,
         fileSize: leavingCertificates.fileSize,
         createdAt: leavingCertificates.createdAt,
+        studentFirstName: students.firstName,
+        studentLastName: students.lastName,
+        studentAdmissionNumber: students.admissionNumber,
+        studentRollNumber: students.rollNumber,
       })
       .from(leavingCertificates)
+      .innerJoin(students, eq(leavingCertificates.studentId, students.id))
       .where(where)
       .orderBy(desc(leavingCertificates.createdAt))
       .limit(query.limit)
@@ -188,7 +219,25 @@ export const listLeavingCertificates = asyncHandler(
 
     res.json({
       success: true,
-      data: rows,
+      data: rows.map((row) => ({
+        id: row.id,
+        certificateNumber: row.certificateNumber,
+        studentId: row.studentId,
+        issueDate: row.issueDate,
+        reason: row.reason,
+        lastClassAttended: row.lastClassAttended,
+        fileName: row.fileName,
+        mimeType: row.mimeType,
+        fileSize: row.fileSize,
+        createdAt: row.createdAt,
+        student: {
+          id: row.studentId,
+          firstName: row.studentFirstName,
+          lastName: row.studentLastName,
+          admissionNumber: row.studentAdmissionNumber,
+          rollNumber: row.studentRollNumber,
+        },
+      })),
       meta: {
         page: query.page,
         limit: query.limit,
@@ -204,13 +253,13 @@ export const uploadLeavingCertificate = asyncHandler(
     const file = req.file;
     if (!file) throw new ApiError(400, "Certificate file is required");
 
-    const body = req.body as {
+    const body = getValidatedBody<{
       studentId: string;
       issueDate: string;
       reason?: string;
       certificateNumber?: string;
       lastClassAttended?: string;
-    };
+    }>(req);
 
     const [student] = await db
       .select()

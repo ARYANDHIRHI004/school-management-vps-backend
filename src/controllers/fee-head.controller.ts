@@ -5,15 +5,15 @@ import { feeHeads } from "../db/schema/fees.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import { getParamId, getValidatedQuery } from "../utils/request.js";
 
 export const listFeeHeads = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     isActive?: "true" | "false";
     search?: string;
-  };
+  }>(req);
 
   const filters = [];
   if (query.isActive === "true") filters.push(eq(feeHeads.isActive, 1));

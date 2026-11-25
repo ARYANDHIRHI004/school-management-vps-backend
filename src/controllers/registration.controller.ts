@@ -1,7 +1,11 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import type { Request, Response } from "express";
 import { db } from "../db/index.js";
-import { studentRegistrations, students } from "../db/schema/students.js";
+import {
+  studentInquiries,
+  studentRegistrations,
+  students,
+} from "../db/schema/students.js";
 import {
   assertStudentAccess,
   resolveScopedStudentId,
@@ -10,18 +14,29 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import {
+  getParamId,
+  getValidatedBody,
+  getValidatedQuery,
+} from "../utils/request.js";
+import {
+  fetchRegistrationWithRelations,
+  registrationWithRelationsSelect,
+  toRegistrationDto,
+  type RegistrationWithRelationsRow,
+} from "../utils/registration-enrichment.js";
 
 type AuthUser = { id: string };
 
 export const listRegistrations = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       page: number;
       limit: number;
       status?: "pending" | "approved" | "rejected";
       studentId?: string;
-    };
+      search?: string;
+    }>(req);
 
     const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 
@@ -32,6 +47,18 @@ export const listRegistrations = asyncHandler(
     if (query.status) {
       filters.push(eq(studentRegistrations.status, query.status));
     }
+    if (query.search) {
+      const pattern = `%${query.search}%`;
+      filters.push(
+        or(
+          ilike(studentRegistrations.registrationNumber, pattern),
+          ilike(students.firstName, pattern),
+          ilike(students.lastName, pattern),
+          ilike(studentInquiries.inquiryNumber, pattern),
+          ilike(studentInquiries.inquirerName, pattern),
+        )!,
+      );
+    }
 
     const where = filters.length ? and(...filters) : undefined;
     const offset = (query.page - 1) * query.limit;
@@ -39,11 +66,21 @@ export const listRegistrations = asyncHandler(
     const [totalRow] = await db
       .select({ total: count() })
       .from(studentRegistrations)
+      .leftJoin(students, eq(studentRegistrations.studentId, students.id))
+      .leftJoin(
+        studentInquiries,
+        eq(studentRegistrations.inquiryId, studentInquiries.id),
+      )
       .where(where);
 
     const rows = await db
-      .select()
+      .select(registrationWithRelationsSelect)
       .from(studentRegistrations)
+      .leftJoin(students, eq(studentRegistrations.studentId, students.id))
+      .leftJoin(
+        studentInquiries,
+        eq(studentRegistrations.inquiryId, studentInquiries.id),
+      )
       .where(where)
       .orderBy(desc(studentRegistrations.createdAt))
       .limit(query.limit)
@@ -51,7 +88,9 @@ export const listRegistrations = asyncHandler(
 
     res.json({
       success: true,
-      data: rows,
+      data: rows.map((row) =>
+        toRegistrationDto(row as RegistrationWithRelationsRow),
+      ),
       meta: {
         page: query.page,
         limit: query.limit,
@@ -63,27 +102,22 @@ export const listRegistrations = asyncHandler(
 
 export const getRegistration = asyncHandler(async (req: Request, res: Response) => {
   const id = getParamId(req);
-  const [row] = await db
-    .select()
-    .from(studentRegistrations)
-    .where(eq(studentRegistrations.id, id))
-    .limit(1);
+  const enriched = await fetchRegistrationWithRelations(id);
+  if (!enriched) throw new ApiError(404, "Registration not found");
+  await assertStudentAccess(req, enriched.studentId);
 
-  if (!row) throw new ApiError(404, "Registration not found");
-  await assertStudentAccess(req, row.studentId);
-
-  res.json({ success: true, data: row });
+  res.json({ success: true, data: enriched });
 });
 
 export const createRegistration = asyncHandler(
   async (req: Request, res: Response) => {
     const user = req.user as AuthUser;
-    const body = req.body as {
+    const body = getValidatedBody<{
       studentId: string;
       inquiryId?: string;
       registrationDate: string;
       remarks?: string;
-    };
+    }>(req);
 
     const [student] = await db
       .select()
@@ -117,23 +151,19 @@ export const createRegistration = asyncHandler(
         .where(eq(students.id, body.studentId));
     });
 
-    const [row] = await db
-      .select()
-      .from(studentRegistrations)
-      .where(eq(studentRegistrations.id, id));
-
-    res.status(201).json({ success: true, data: row });
+    const enriched = await fetchRegistrationWithRelations(id);
+    res.status(201).json({ success: true, data: enriched });
   },
 );
 
 export const updateRegistration = asyncHandler(
   async (req: Request, res: Response) => {
     const id = getParamId(req);
-    const body = req.body as {
+    const body = getValidatedBody<{
       status?: "pending" | "approved" | "rejected";
       remarks?: string;
       registrationDate?: string;
-    };
+    }>(req);
 
     const [existing] = await db
       .select()
@@ -143,16 +173,16 @@ export const updateRegistration = asyncHandler(
 
     if (!existing) throw new ApiError(404, "Registration not found");
 
-    const [updated] = await db
+    await db
       .update(studentRegistrations)
       .set({
         status: body.status ?? existing.status,
         remarks: body.remarks ?? existing.remarks,
         registrationDate: body.registrationDate ?? existing.registrationDate,
       })
-      .where(eq(studentRegistrations.id, id))
-      .returning();
+      .where(eq(studentRegistrations.id, id));
 
-    res.json({ success: true, data: updated });
+    const enriched = await fetchRegistrationWithRelations(id);
+    res.json({ success: true, data: enriched });
   },
 );

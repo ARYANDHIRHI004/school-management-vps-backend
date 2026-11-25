@@ -10,15 +10,15 @@ import {
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { outstandingPaise } from "../utils/fees.js";
-import { getParamId } from "../utils/request.js";
+import { getParamId, getValidatedQuery } from "../utils/request.js";
 
 export const getStudentStatementByPath = asyncHandler(
   async (req: Request, res: Response) => {
     const studentId = getParamId(req, "studentId");
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       fromDate?: string;
       toDate?: string;
-    };
+    }>(req);
     await assertStudentAccess(req, studentId);
     const payload = await buildStudentStatement(studentId, query);
     res.json({ success: true, data: payload });
@@ -27,11 +27,11 @@ export const getStudentStatementByPath = asyncHandler(
 
 export const getStudentStatementByQuery = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       studentId?: string;
       fromDate?: string;
       toDate?: string;
-    };
+    }>(req);
     const studentId = await resolveScopedStudentId(req, query.studentId);
     if (!studentId) {
       throw new ApiError(400, "studentId is required for admin statement view");

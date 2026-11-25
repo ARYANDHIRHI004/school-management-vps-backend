@@ -72,6 +72,7 @@ export const updateRegistrationSchema = z.object({
 export const registrationListQuerySchema = paginationQuerySchema.extend({
   status: z.enum(["pending", "approved", "rejected"]).optional(),
   studentId: z.string().min(1).optional(),
+  search: z.string().max(100).optional(),
 });
 
 const portalAccessSchema = z.object({
@@ -105,6 +106,7 @@ export const updateAdmissionSchema = z.object({
 export const admissionListQuerySchema = paginationQuerySchema.extend({
   status: z.enum(["active", "completed", "cancelled"]).optional(),
   studentId: z.string().min(1).optional(),
+  search: z.string().max(100).optional(),
 });
 
 export const uploadCertificateMetaSchema = z.object({

@@ -7,7 +7,11 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import {
+  getParamId,
+  getValidatedBody,
+  getValidatedQuery,
+} from "../utils/request.js";
 
 type AuthUser = { id: string };
 
@@ -21,13 +25,13 @@ async function assertStaffExists(staffId: string) {
 }
 
 export const listPaySlips = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     staffId?: string;
     fromDate?: string;
     toDate?: string;
-  };
+  }>(req);
 
   const filters = [];
   if (query.staffId) {
@@ -77,7 +81,27 @@ export const listPaySlips = asyncHandler(async (req: Request, res: Response) => 
 
   res.json({
     success: true,
-    data: rows,
+    data: rows.map((row) => ({
+      id: row.id,
+      slipNumber: row.slipNumber,
+      staffId: row.staffId,
+      payPeriodStart: row.payPeriodStart,
+      payPeriodEnd: row.payPeriodEnd,
+      issueDate: row.issueDate,
+      grossAmountPaise: row.grossAmountPaise,
+      netAmountPaise: row.netAmountPaise,
+      deductionsPaise: row.deductionsPaise,
+      fileName: row.fileName,
+      mimeType: row.mimeType,
+      fileSize: row.fileSize,
+      notes: row.notes,
+      createdAt: row.createdAt,
+      staff: {
+        staffCode: row.staffCode,
+        firstName: row.firstName,
+        lastName: row.lastName,
+      },
+    })),
     meta: {
       page: query.page,
       limit: query.limit,
@@ -104,7 +128,7 @@ export const uploadPaySlip = asyncHandler(async (req: Request, res: Response) =>
   const file = req.file;
   if (!file) throw new ApiError(400, "Pay slip file is required");
 
-  const body = req.body as {
+  const body = getValidatedBody<{
     staffId: string;
     payPeriodStart: string;
     payPeriodEnd: string;
@@ -114,7 +138,7 @@ export const uploadPaySlip = asyncHandler(async (req: Request, res: Response) =>
     netAmountPaise?: number;
     deductionsPaise?: number;
     notes?: string;
-  };
+  }>(req);
 
   await assertStaffExists(body.staffId);
 

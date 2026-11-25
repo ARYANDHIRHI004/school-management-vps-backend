@@ -8,6 +8,7 @@ import { env } from "../utils/env.js";
 import { ROLES } from "../utils/roles.js";
 import { assertStudentPortalLogin } from "../utils/student-portal-access.js";
 import { ApiError as AppApiError } from "../utils/api-error.js";
+import { isDatabaseConnectionError } from "../utils/database-error.js";
 
 export const auth = betterAuth({
   appName: "School Management",
@@ -22,6 +23,16 @@ export const auth = betterAuth({
     disableSignUp: !env.AUTH_ALLOW_PUBLIC_SIGNUP,
   },
   trustedOrigins: env.CORS_ORIGINS,
+  advanced:
+    env.NODE_ENV === "development"
+      ? {
+          defaultCookieAttributes: {
+            sameSite: "none",
+            secure: false,
+            httpOnly: true,
+          },
+        }
+      : undefined,
   plugins: [
     admin({
       defaultRole: ROLES.STUDENT,
@@ -36,6 +47,12 @@ export const auth = betterAuth({
       try {
         await assertStudentPortalLogin(email);
       } catch (error) {
+        if (isDatabaseConnectionError(error)) {
+          throw new APIError("SERVICE_UNAVAILABLE", {
+            message:
+              "Database is unavailable. Start PostgreSQL (npm run db:up) and ensure DATABASE_URL is correct.",
+          });
+        }
         if (error instanceof AppApiError) {
           throw new APIError("FORBIDDEN", { message: error.message });
         }

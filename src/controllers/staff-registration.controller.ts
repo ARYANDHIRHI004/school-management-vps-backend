@@ -6,12 +6,16 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import {
+  getParamId,
+  getValidatedBody,
+  getValidatedQuery,
+} from "../utils/request.js";
 
 type AuthUser = { id: string };
 
 export const listStaff = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     status?: "active" | "inactive" | "resigned";
@@ -19,7 +23,7 @@ export const listStaff = asyncHandler(async (req: Request, res: Response) => {
     designation?: string;
     isTeachingStaff?: boolean;
     search?: string;
-  };
+  }>(req);
 
   const filters = [];
   if (query.status) {
@@ -95,7 +99,7 @@ export const getStaff = asyncHandler(async (req: Request, res: Response) => {
 
 export const createStaff = asyncHandler(async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  const body = req.body as {
+  const body = getValidatedBody<{
     firstName: string;
     lastName: string;
     designation: string;
@@ -112,7 +116,7 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
     subjectsTaught?: string;
     baseSalaryPaise?: number;
     staffCode?: string;
-  };
+  }>(req);
 
   const id = createId();
   const staffCode = body.staffCode ?? createDocumentNumber("STF");
@@ -152,7 +156,7 @@ export const createStaff = asyncHandler(async (req: Request, res: Response) => {
 
 export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
   const id = getParamId(req);
-  const body = req.body as {
+  const body = getValidatedBody<{
     firstName?: string;
     lastName?: string;
     designation?: string;
@@ -170,7 +174,7 @@ export const updateStaff = asyncHandler(async (req: Request, res: Response) => {
     baseSalaryPaise?: number;
     status?: "active" | "inactive" | "resigned";
     staffCode?: string;
-  };
+  }>(req);
 
   const [existing] = await db
     .select()

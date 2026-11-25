@@ -1,16 +1,30 @@
-import { AuthPortalShell } from "@/components/auth/auth-portal-shell";
-import { DashboardPanel } from "@/components/dashboard-panel";
+"use client";
 
-export default function DashboardPage() {
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
+
+import { useSessionQuery } from "@/hooks/queries/use-session-query";
+import { dashboardPathForRole } from "@/lib/roles";
+
+export default function DashboardIndexPage() {
+  const router = useRouter();
+  const { data: session, isPending } = useSessionQuery();
+
+  useEffect(() => {
+    if (isPending) return;
+    if (!session?.user) {
+      router.replace("/login");
+      return;
+    }
+    const role = (session.user as { role?: string }).role;
+    router.replace(dashboardPathForRole(role));
+  }, [isPending, router, session]);
+
   return (
-    <AuthPortalShell
-      variant="login"
-      title="Your school portal"
-      subtitle="Manage academics, fees, and updates in one place. More modules will appear here as we connect the admin and student APIs."
-      illustration="/images/illustrations/undraw_reading-a-book_4cap.svg"
-      badge="Dashboard"
-    >
-      <DashboardPanel />
-    </AuthPortalShell>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#F8FAFC] text-gray-600">
+      <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+      <p className="mt-3 text-sm">Redirecting to your portal…</p>
+    </div>
   );
 }

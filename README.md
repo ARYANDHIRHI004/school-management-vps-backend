@@ -14,6 +14,10 @@ cp .env.example .env
 # Include frontend origin in CORS_ORIGINS (e.g. http://localhost:3001)
 
 npm install
+# Start Postgres (Docker) then sync schema:
+docker compose up -d   # or: npm run db:up
+npm run db:push        # applies Drizzle schema to the database
+# Alternatively use versioned migrations:
 npm run db:migrate
 npm run dev
 ```
@@ -29,11 +33,28 @@ npm install
 npm run dev
 ```
 
-Create the first admin:
+Seed **two dev admins** (idempotent — safe to re-run):
+
+```bash
+npm run db:seed
+```
+
+Default logins (override via `SEED_ADMIN1_*` / `SEED_ADMIN2_*` in `.env`):
+
+| Email | Password | Role |
+|-------|----------|------|
+| `admin@school.local` | `Admin@123456` | admin |
+| `admin2@school.local` | `Admin2@123456` | admin |
+
+Or create a single admin with the Better Auth CLI:
 
 ```bash
 npx auth@latest create-admin --email admin@school.local --password "YourSecurePass123" --name "Admin" --role admin
 ```
+
+### Student login (not seeded)
+
+Admins register students through the API/UI workflow: **inquiry → registration (approved) → admission → `POST /api/students/:id/portal-access`**. Only then can the student use **Student** portal sign-in.
 
 ---
 

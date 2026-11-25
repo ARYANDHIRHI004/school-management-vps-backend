@@ -4,10 +4,11 @@ import { db } from "../db/index.js";
 import { studentFeeDues } from "../db/schema/fees.js";
 import { students } from "../db/schema/students.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { getValidatedQuery } from "../utils/request.js";
 
 export const listOutstandingStudents = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       page: number;
       limit: number;
       academicYear?: string;
@@ -15,7 +16,7 @@ export const listOutstandingStudents = asyncHandler(
       section?: string;
       search?: string;
       minOutstandingPaise?: number;
-    };
+    }>(req);
 
     const studentFilters = [];
     if (query.className) {

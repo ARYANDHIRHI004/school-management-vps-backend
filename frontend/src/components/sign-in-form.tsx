@@ -7,17 +7,39 @@ import { motion } from "framer-motion";
 
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthMessage } from "@/components/auth/auth-message";
+import { PortalRoleToggle } from "@/components/auth/portal-role-toggle";
 import { AuthField } from "@/components/auth-field";
 import { useSignInMutation } from "@/hooks/mutations/use-auth-mutations";
+import type { PortalIntent } from "@/lib/roles";
+import { useAuthStore } from "@/stores/auth-store";
+
+const portalCopy: Record<
+  PortalIntent,
+  { title: string; hint: string; placeholder: string }
+> = {
+  student: {
+    title: "Student portal sign in",
+    hint: "Use the email and password created by the school after admission. Sign-in is verified by the API (linked admitted student).",
+    placeholder: "student@school.local",
+  },
+  admin: {
+    title: "Admin console sign in",
+    hint: "Use your school admin account (created via create-admin CLI or another admin).",
+    placeholder: "admin@school.local",
+  },
+};
 
 export function SignInForm() {
+  const portalIntent = useAuthStore((s) => s.portalIntent);
+  const setPortalIntent = useAuthStore((s) => s.setPortalIntent);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const signIn = useSignInMutation();
+  const copy = portalCopy[portalIntent];
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    signIn.mutate({ email, password });
+    signIn.mutate({ email, password, portalIntent });
   }
 
   return (
@@ -26,16 +48,26 @@ export function SignInForm() {
         <div className="mb-3 flex items-center gap-2 text-amber-600">
           <ShieldCheck className="h-5 w-5" />
           <span className="text-xs font-bold uppercase tracking-wider">
-            Portal sign in
+            Secure portal
           </span>
         </div>
         <h2 className="font-[family-name:var(--font-heading)] text-2xl font-extrabold text-[#0F2544]">
-          Sign in to your account
+          {copy.title}
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-gray-600 font-[family-name:var(--font-body)]">
-          Use credentials provided by the school after admission, or your admin
-          account.
+          {copy.hint}
         </p>
+      </div>
+
+      <div className="mb-5">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          I am signing in as
+        </p>
+        <PortalRoleToggle
+          value={portalIntent}
+          onChange={setPortalIntent}
+          disabled={signIn.isPending}
+        />
       </div>
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -45,7 +77,7 @@ export function SignInForm() {
           name="email"
           autoComplete="email"
           required
-          placeholder="you@school.local"
+          placeholder={copy.placeholder}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -82,7 +114,7 @@ export function SignInForm() {
           ) : (
             <>
               <LogIn className="h-4 w-4" />
-              Sign in
+              Sign in as {portalIntent === "admin" ? "Admin" : "Student"}
             </>
           )}
         </motion.button>

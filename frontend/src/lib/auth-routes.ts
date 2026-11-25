@@ -1,6 +1,7 @@
-export function dashboardPathForRole(role: string | null | undefined): string {
-  return role === "admin" ? "/dashboard" : "/dashboard";
-}
+import { dashboardPathForRole, type PortalIntent } from "@/lib/roles";
+
+export type { PortalIntent };
+export { dashboardPathForRole };
 
 export async function redirectAfterAuth(
   router: { push: (path: string) => void; refresh: () => void },

@@ -14,18 +14,18 @@ import { ApiError } from "../utils/api-error.js";
 import { computeDueStatus, outstandingPaise } from "../utils/fees.js";
 import { createFeePaymentAlert } from "../utils/fee-alert-create.js";
 import { paiseToInrLabel } from "../utils/msg91.js";
-import { getParamId } from "../utils/request.js";
+import { getParamId, getValidatedQuery } from "../utils/request.js";
 
 type AuthUser = { id: string };
 
 export const listFeeAlerts = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     studentId?: string;
     status?: "unread" | "read" | "dismissed";
     alertType?: "due_reminder" | "overdue" | "payment_received" | "custom";
-  };
+  }>(req);
 
   const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 

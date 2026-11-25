@@ -14,17 +14,21 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import {
+  getParamId,
+  getValidatedBody,
+  getValidatedQuery,
+} from "../utils/request.js";
 
 type AuthUser = { id: string };
 
 export const listInquiries = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     status?: "open" | "converted" | "closed";
     search?: string;
-  };
+  }>(req);
 
   const scopedStudentId = await resolveScopedStudentId(req);
 
@@ -89,7 +93,7 @@ export const getInquiry = asyncHandler(async (req: Request, res: Response) => {
 
 export const createInquiry = asyncHandler(async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  const body = req.body as {
+  const body = getValidatedBody<{
     firstName: string;
     lastName: string;
     inquirerName: string;
@@ -109,7 +113,7 @@ export const createInquiry = asyncHandler(async (req: Request, res: Response) =>
     intendedClass?: string;
     intendedStream?: string;
     notes?: string;
-  };
+  }>(req);
 
   const studentId = createId();
   const inquiryId = createId();
@@ -169,7 +173,7 @@ export const updateInquiry = asyncHandler(async (req: Request, res: Response) =>
 
   if (!existing) throw new ApiError(404, "Inquiry not found");
 
-  const body = req.body as {
+  const body = getValidatedBody<{
     inquirerName?: string;
     email?: string;
     phone?: string;
@@ -178,7 +182,7 @@ export const updateInquiry = asyncHandler(async (req: Request, res: Response) =>
     academicYear?: string;
     notes?: string;
     status?: "open" | "converted" | "closed";
-  };
+  }>(req);
 
   const [updated] = await db
     .update(studentInquiries)
@@ -202,7 +206,10 @@ export const convertInquiryToRegistration = asyncHandler(
   async (req: Request, res: Response) => {
     const user = req.user as AuthUser;
     const id = getParamId(req);
-    const body = req.body as { registrationDate: string; remarks?: string };
+    const body = getValidatedBody<{
+      registrationDate: string;
+      remarks?: string;
+    }>(req);
 
     const [inquiry] = await db
       .select()

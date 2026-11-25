@@ -6,7 +6,11 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createId } from "../utils/ids.js";
 import { summarizeLedger } from "../utils/ledger.js";
-import { getParamId } from "../utils/request.js";
+import {
+  getParamId,
+  getValidatedBody,
+  getValidatedQuery,
+} from "../utils/request.js";
 
 type AuthUser = { id: string };
 
@@ -21,7 +25,7 @@ async function assertStaffExists(staffId: string) {
 
 export const listLedgerEntries = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       page: number;
       limit: number;
       staffId?: string;
@@ -36,7 +40,7 @@ export const listLedgerEntries = asyncHandler(
       entryType?: "credit" | "debit";
       fromDate?: string;
       toDate?: string;
-    };
+    }>(req);
 
     const filters = [];
     if (query.staffId) {
@@ -64,8 +68,23 @@ export const listLedgerEntries = asyncHandler(
       .where(where);
 
     const rows = await db
-      .select()
+      .select({
+        id: staffLedgerEntries.id,
+        staffId: staffLedgerEntries.staffId,
+        entryDate: staffLedgerEntries.entryDate,
+        entryType: staffLedgerEntries.entryType,
+        category: staffLedgerEntries.category,
+        amountPaise: staffLedgerEntries.amountPaise,
+        referenceNumber: staffLedgerEntries.referenceNumber,
+        description: staffLedgerEntries.description,
+        recordedByUserId: staffLedgerEntries.recordedByUserId,
+        createdAt: staffLedgerEntries.createdAt,
+        staffCode: staffMembers.staffCode,
+        firstName: staffMembers.firstName,
+        lastName: staffMembers.lastName,
+      })
       .from(staffLedgerEntries)
+      .innerJoin(staffMembers, eq(staffLedgerEntries.staffId, staffMembers.id))
       .where(where)
       .orderBy(desc(staffLedgerEntries.entryDate), desc(staffLedgerEntries.createdAt))
       .limit(query.limit)
@@ -85,7 +104,23 @@ export const listLedgerEntries = asyncHandler(
 
     res.json({
       success: true,
-      data: rows,
+      data: rows.map((row) => ({
+        id: row.id,
+        staffId: row.staffId,
+        entryDate: row.entryDate,
+        entryType: row.entryType,
+        category: row.category,
+        amountPaise: row.amountPaise,
+        referenceNumber: row.referenceNumber,
+        description: row.description,
+        recordedByUserId: row.recordedByUserId,
+        createdAt: row.createdAt,
+        staff: {
+          staffCode: row.staffCode,
+          firstName: row.firstName,
+          lastName: row.lastName,
+        },
+      })),
       summary: summary ?? null,
       meta: {
         page: query.page,
@@ -132,7 +167,7 @@ export const getStaffLedger = asyncHandler(async (req: Request, res: Response) =
 export const createLedgerEntry = asyncHandler(
   async (req: Request, res: Response) => {
     const user = req.user as AuthUser;
-    const body = req.body as {
+    const body = getValidatedBody<{
       staffId: string;
       entryDate: string;
       entryType: "credit" | "debit";
@@ -147,7 +182,7 @@ export const createLedgerEntry = asyncHandler(
       amountPaise: number;
       referenceNumber?: string;
       description?: string;
-    };
+    }>(req);
 
     await assertStaffExists(body.staffId);
 

@@ -15,16 +15,16 @@ import {
 } from "../utils/student-access.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
-import { getParamId } from "../utils/request.js";
+import { getParamId, getValidatedQuery } from "../utils/request.js";
 
 export const listFeeReceipts = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     studentId?: string;
     fromDate?: string;
     toDate?: string;
-  };
+  }>(req);
 
   const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 

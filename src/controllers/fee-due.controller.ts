@@ -15,7 +15,7 @@ import { ApiError } from "../utils/api-error.js";
 import { computeDueStatus, outstandingPaise } from "../utils/fees.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
-import { getParamId } from "../utils/request.js";
+import { getParamId, getValidatedQuery } from "../utils/request.js";
 
 type AuthUser = { id: string };
 
@@ -29,13 +29,13 @@ async function assertStudentExists(studentId: string) {
 }
 
 export const listFeeDues = asyncHandler(async (req: Request, res: Response) => {
-  const query = req.query as unknown as {
+  const query = getValidatedQuery<{
     page: number;
     limit: number;
     studentId?: string;
     status?: "pending" | "partial" | "paid" | "overdue" | "waived";
     academicYear?: string;
-  };
+  }>(req);
 
   const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 

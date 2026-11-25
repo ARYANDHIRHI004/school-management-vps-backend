@@ -19,13 +19,13 @@ import { createDocumentNumber } from "../utils/document-number.js";
 import { createFeePaymentAlert } from "../utils/fee-alert-create.js";
 import { createId } from "../utils/ids.js";
 import { paiseToInrLabel } from "../utils/msg91.js";
-import { getParamId } from "../utils/request.js";
+import { getParamId, getValidatedQuery } from "../utils/request.js";
 
 type AuthUser = { id: string };
 
 export const listFeeCollections = asyncHandler(
   async (req: Request, res: Response) => {
-    const query = req.query as unknown as {
+    const query = getValidatedQuery<{
       page: number;
       limit: number;
       studentId?: string;
@@ -37,7 +37,7 @@ export const listFeeCollections = asyncHandler(
         | "bank_transfer"
         | "upi_offline"
         | "other";
-    };
+    }>(req);
 
     const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
 
