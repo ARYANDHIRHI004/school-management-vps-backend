@@ -11,9 +11,21 @@ Node.js + TypeScript + Express backend with PostgreSQL (Drizzle), Better Auth, a
 ```bash
 cp .env.example .env
 # Set DATABASE_URL, BETTER_AUTH_SECRET (min 32 chars), BETTER_AUTH_URL
+# Include frontend origin in CORS_ORIGINS (e.g. http://localhost:3001)
 
 npm install
 npm run db:migrate
+npm run dev
+```
+
+### Frontend (Next.js)
+
+The web app lives in `frontend/` (port **3001**). See [frontend/README.md](./frontend/README.md).
+
+```bash
+cd frontend
+cp .env.example .env.local
+npm install
 npm run dev
 ```
 
@@ -113,7 +125,7 @@ Handled by Better Auth (not custom controllers). Mount path: `/api/auth/*splat`.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/auth/ok` | No | Auth server health |
-| `POST` | `/api/auth/sign-up/email` | **Disabled** | Public student sign-up is turned off |
+| `POST` | `/api/auth/sign-up/email` | When `AUTH_ALLOW_PUBLIC_SIGNUP=true` | Email sign-up (disabled by default) |
 | `POST` | `/api/auth/sign-in/email` | No | Login with email + password |
 | `POST` | `/api/auth/sign-out` | Session | Logout |
 | `GET` | `/api/auth/get-session` | Session | Current session |

@@ -19,7 +19,7 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    disableSignUp: true,
+    disableSignUp: !env.AUTH_ALLOW_PUBLIC_SIGNUP,
   },
   trustedOrigins: env.CORS_ORIGINS,
   plugins: [
