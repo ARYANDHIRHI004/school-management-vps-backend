@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { classOverviewQueryKey } from "@/hooks/queries/use-classes-query";
 import { apiFetch } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type {
@@ -27,6 +28,7 @@ export function useCreateAdmissionMutation() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       void queryClient.invalidateQueries({ queryKey: ["registrations"] });
+      void queryClient.invalidateQueries({ queryKey: classOverviewQueryKey });
     },
   });
 }
@@ -47,6 +49,7 @@ export function useUpdateAdmissionMutation(id: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.admission(id) });
+      void queryClient.invalidateQueries({ queryKey: classOverviewQueryKey });
     },
   });
 }

@@ -13,6 +13,10 @@ export const admissionWithRelationsSelect = {
   studentPhone: students.phone,
   studentEmail: students.email,
   studentLifecycleStatus: students.lifecycleStatus,
+  studentEnrollmentStatus: students.enrollmentStatus,
+  studentRecordStatus: students.recordStatus,
+  studentDepartedAt: students.departedAt,
+  studentDepartureReason: students.departureReason,
   registrationNumber: studentRegistrations.registrationNumber,
 };
 
@@ -35,6 +39,10 @@ export type AdmissionWithRelationsRow = {
   studentPhone: string | null;
   studentEmail: string | null;
   studentLifecycleStatus: string | null;
+  studentEnrollmentStatus: string | null;
+  studentRecordStatus: string | null;
+  studentDepartedAt: string | null;
+  studentDepartureReason: string | null;
   registrationNumber: string | null;
 };
 
@@ -64,6 +72,10 @@ export function toAdmissionDto(row: AdmissionWithRelationsRow) {
           phone: row.studentPhone,
           email: row.studentEmail,
           lifecycleStatus: row.studentLifecycleStatus,
+          enrollmentStatus: row.studentEnrollmentStatus,
+          recordStatus: row.studentRecordStatus,
+          departedAt: row.studentDepartedAt,
+          departureReason: row.studentDepartureReason,
         }
       : null,
     registration:

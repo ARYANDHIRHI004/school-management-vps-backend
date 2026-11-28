@@ -12,6 +12,11 @@ export const queryKeys = {
   admissions: (filters: AdmissionListFilters) =>
     ["admissions", filters] as const,
   admission: (id: string) => ["admission", id] as const,
+  studentRecords: (filters: StudentRecordsListFilters) =>
+    ["studentRecords", filters] as const,
+  studentProfile: (id: string) => ["studentProfile", id] as const,
+  studentClassSectionOptions: ["studentClassSectionOptions"] as const,
+  academicOptions: ["academicOptions"] as const,
   bifurcations: (filters: BifurcationListFilters) =>
     ["bifurcations", filters] as const,
   transferCertificates: (filters: CertificateListFilters) =>
@@ -71,11 +76,48 @@ export type BifurcationListFilters = {
   search?: string;
 };
 
+export type StudentRecordsListFilters = {
+  page: number;
+  limit: number;
+  search?: string;
+  className?: string;
+  section?: string;
+  lifecycle?: StudentLifecycleFilter;
+  enrollmentStatus?: StudentEnrollmentFilter;
+  recordStatus?: StudentRecordStatusFilter;
+};
+
+export type StudentLifecycleFilter =
+  | "inquiry"
+  | "registered"
+  | "admitted"
+  | "transferred"
+  | "left";
+
+export type StudentEnrollmentFilter =
+  | "not_enrolled"
+  | "enrolled"
+  | "transferred"
+  | "graduated"
+  | "left";
+
+export type StudentRecordStatusFilter =
+  | "active"
+  | "inactive"
+  | "graduated"
+  | "withdrawn";
+
 export type AdmissionListFilters = {
   page: number;
   limit: number;
   status?: "active" | "completed" | "cancelled";
   search?: string;
+  lifecycle?:
+    | "inquiry"
+    | "registered"
+    | "admitted"
+    | "transferred"
+    | "left";
 };
 
 export type RegistrationListFilters = {

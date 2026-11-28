@@ -688,6 +688,7 @@ function AdmissionModal({
 }) {
   const admit = useCreateAdmissionMutation();
   const [admissionDate, setAdmissionDate] = useState(todayYmd());
+  const [admissionNumber, setAdmissionNumber] = useState("");
   const [className, setClassName] = useState(row.student?.className ?? "");
   const [section, setSection] = useState("");
   const [stream, setStream] = useState(row.student?.stream ?? "");
@@ -703,6 +704,7 @@ function AdmissionModal({
         studentId: row.studentId,
         registrationId: row.id,
         admissionDate,
+        admissionNumber: admissionNumber.trim(),
         className: className.trim(),
         section: section.trim() || undefined,
         stream: stream.trim() || undefined,
@@ -753,6 +755,15 @@ function AdmissionModal({
           required
           value={admissionDate}
           onChange={(e) => setAdmissionDate(e.target.value)}
+          className="sm:col-span-2"
+        />
+        <AuthField
+          label="Admission number"
+          name="admissionNumber"
+          required
+          value={admissionNumber}
+          onChange={(e) => setAdmissionNumber(e.target.value)}
+          placeholder="Enter school-issued admission number"
           className="sm:col-span-2"
         />
         <AuthField

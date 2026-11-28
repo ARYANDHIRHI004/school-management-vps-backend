@@ -13,6 +13,7 @@ export function useAdmissionsQuery(filters: AdmissionListFilters) {
     limit: filters.limit,
     status: filters.status,
     search: filters.search,
+    lifecycle: filters.lifecycle,
   });
 
   return useQuery({

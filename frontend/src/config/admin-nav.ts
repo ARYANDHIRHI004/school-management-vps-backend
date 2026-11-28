@@ -69,6 +69,14 @@ export const adminNavGroups: AdminNavGroup[] = [
         description: "Create admissions from approved registrations",
       },
       {
+        id: "classes",
+        label: "Classes",
+        href: "/dashboard/admin/students/classes",
+        icon: School,
+        description:
+          "Classes, sections, student rosters, and section teachers",
+      },
+      {
         id: "bifurcation",
         label: "Bifurcation search",
         href: "/dashboard/admin/students/bifurcation",

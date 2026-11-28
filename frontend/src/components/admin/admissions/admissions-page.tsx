@@ -9,11 +9,17 @@ import {
   useCreateAdmissionMutation,
   useUpdateAdmissionMutation,
 } from "@/hooks/mutations/use-admission-mutations";
+import { useMarkStudentDepartureMutation } from "@/hooks/mutations/use-student-departure-mutation";
 import {
   useAdmissionQuery,
   useAdmissionsQuery,
 } from "@/hooks/queries/use-admissions-query";
+import {
+  ClassSectionPicker,
+  matchClassSectionIds,
+} from "@/components/admin/classes/class-section-picker";
 import { useRegistrationsQuery } from "@/hooks/queries/use-registrations-query";
+import { useAcademicOptionsQuery } from "@/hooks/queries/use-student-records-query";
 import type {
   AdmissionStatus,
   StudentAdmission,
@@ -31,6 +37,13 @@ const STATUS_EDIT: { value: AdmissionStatus; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
+];
+
+const LIFECYCLE_FILTER: { value: string; label: string }[] = [
+  { value: "", label: "All students" },
+  { value: "admitted", label: "Currently enrolled" },
+  { value: "left", label: "Left school" },
+  { value: "transferred", label: "Transferred out" },
 ];
 
 function todayYmd() {
@@ -65,6 +78,29 @@ function studentLabel(row: StudentAdmission) {
   return row.studentId.slice(0, 10) + "…";
 }
 
+function LifecycleBadge({ lifecycle }: { lifecycle: string | null | undefined }) {
+  if (!lifecycle || lifecycle === "admitted") {
+    return (
+      <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold capitalize text-emerald-800">
+        {lifecycle === "admitted" ? "Enrolled" : lifecycle ?? "—"}
+      </span>
+    );
+  }
+  const styles =
+    lifecycle === "left"
+      ? "bg-amber-100 text-amber-900"
+      : lifecycle === "transferred"
+        ? "bg-sky-100 text-sky-900"
+        : "bg-gray-100 text-gray-700";
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${styles}`}
+    >
+      {lifecycle}
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { status: AdmissionStatus }) {
   const styles =
     status === "active"
@@ -84,6 +120,7 @@ function StatusBadge({ status }: { status: AdmissionStatus }) {
 export function AdmissionsPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<AdmissionStatus | "">("");
+  const [lifecycle, setLifecycle] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -103,8 +140,14 @@ export function AdmissionsPage() {
       limit: 15,
       status: status || undefined,
       search: search || undefined,
+      lifecycle:
+        (lifecycle as
+          | "admitted"
+          | "left"
+          | "transferred"
+          | undefined) || undefined,
     }),
-    [page, status, search],
+    [page, status, search, lifecycle],
   );
 
   const listQuery = useAdmissionsQuery(filters);
@@ -153,7 +196,7 @@ export function AdmissionsPage() {
         </label>
         <div className="w-full sm:max-w-[220px]">
           <AuthSelect
-            label="Status"
+            label="Admission status"
             name="status"
             value={status}
             onChange={(e) => {
@@ -161,6 +204,18 @@ export function AdmissionsPage() {
               setPage(1);
             }}
             options={STATUS_FILTER}
+          />
+        </div>
+        <div className="w-full sm:max-w-[220px]">
+          <AuthSelect
+            label="Student"
+            name="lifecycle"
+            value={lifecycle}
+            onChange={(e) => {
+              setLifecycle(e.target.value);
+              setPage(1);
+            }}
+            options={LIFECYCLE_FILTER}
           />
         </div>
       </div>
@@ -259,7 +314,8 @@ function AdmissionsTable({
             <th className="px-4 py-3">Student</th>
             <th className="px-4 py-3">Class</th>
             <th className="px-4 py-3">Date</th>
-            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Adm. status</th>
+            <th className="px-4 py-3">Enrollment</th>
             <th className="px-4 py-3">Created</th>
             <th className="px-4 py-3" />
           </tr>
@@ -288,6 +344,9 @@ function AdmissionsTable({
               </td>
               <td className="px-4 py-3">
                 <StatusBadge status={row.status} />
+              </td>
+              <td className="px-4 py-3">
+                <LifecycleBadge lifecycle={row.student?.lifecycleStatus} />
               </td>
               <td className="px-4 py-3 text-gray-500">
                 {formatWhen(row.createdAt)}
@@ -356,8 +415,10 @@ function CreateAdmissionModal({ onClose }: { onClose: () => void }) {
   const selected = eligible.find((r) => r.id === registrationId);
 
   const [admissionDate, setAdmissionDate] = useState(todayYmd());
-  const [className, setClassName] = useState("");
-  const [section, setSection] = useState("");
+  const [admissionNumber, setAdmissionNumber] = useState("");
+  const academic = useAcademicOptionsQuery();
+  const [classId, setClassId] = useState("");
+  const [sectionId, setSectionId] = useState("");
   const [stream, setStream] = useState("");
   const [academicYear, setAcademicYear] = useState("");
   const [portalEnabled, setPortalEnabled] = useState(false);
@@ -370,11 +431,17 @@ function CreateAdmissionModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!selected) return;
-    setClassName(selected.student?.className ?? "");
+    const matched = matchClassSectionIds(
+      academic.data,
+      selected.student?.className,
+      selected.student?.section,
+    );
+    setClassId(matched?.classId ?? "");
+    setSectionId(matched?.sectionId ?? "");
     setStream(selected.student?.stream ?? "");
     setAcademicYear(selected.student?.academicYear ?? "");
     setPortalEmail(selected.student?.email ?? "");
-  }, [selected]);
+  }, [selected, academic.data]);
 
   const regOptions = [
     { value: "", label: "Select approved registration…" },
@@ -392,8 +459,9 @@ function CreateAdmissionModal({ onClose }: { onClose: () => void }) {
         studentId: selected.studentId,
         registrationId: selected.id,
         admissionDate,
-        className: className.trim(),
-        section: section.trim() || undefined,
+        admissionNumber: admissionNumber.trim(),
+        classId,
+        sectionId,
         stream: stream.trim() || undefined,
         academicYear: academicYear.trim() || undefined,
         portalAccess:
@@ -441,7 +509,15 @@ function CreateAdmissionModal({ onClose }: { onClose: () => void }) {
       </h3>
       <p className="mt-1 text-sm text-gray-500">
         Student must have an <strong>approved</strong> registration and not yet
-        be admitted.
+        be admitted. Choose a class and section you created under{" "}
+        <Link
+          href="/dashboard/admin/students/classes"
+          className="font-semibold text-amber-800 hover:underline"
+          onClick={onClose}
+        >
+          Classes
+        </Link>
+        .
       </p>
 
       {eligibleQuery.isLoading ? (
@@ -477,17 +553,19 @@ function CreateAdmissionModal({ onClose }: { onClose: () => void }) {
             onChange={(e) => setAdmissionDate(e.target.value)}
           />
           <AuthField
-            label="Class"
-            name="className"
+            label="Admission number"
+            name="admissionNumber"
             required
-            value={className}
-            onChange={(e) => setClassName(e.target.value)}
+            value={admissionNumber}
+            onChange={(e) => setAdmissionNumber(e.target.value)}
+            placeholder="e.g. 2025/1042"
+            className="sm:col-span-2"
           />
-          <AuthField
-            label="Section"
-            name="section"
-            value={section}
-            onChange={(e) => setSection(e.target.value)}
+          <ClassSectionPicker
+            classId={classId}
+            sectionId={sectionId}
+            onClassChange={setClassId}
+            onSectionChange={setSectionId}
           />
           <AuthField
             label="Stream"
@@ -550,7 +628,9 @@ function CreateAdmissionModal({ onClose }: { onClose: () => void }) {
             </button>
             <button
               type="submit"
-              disabled={create.isPending || !selected}
+              disabled={
+                create.isPending || !selected || !classId || !sectionId
+              }
               className="flex-1 rounded-xl bg-[#0F2544] py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               {create.isPending ? "Creating…" : "Create admission"}
@@ -649,28 +729,156 @@ function AdmissionPanelHeader({
   );
 }
 
+function MarkStudentDepartureBlock({ row }: { row: StudentAdmission }) {
+  const mark = useMarkStudentDepartureMutation();
+  const lifecycle = row.student?.lifecycleStatus;
+  const canDepart = lifecycle === "admitted" && row.status === "active";
+  const [departureType, setDepartureType] = useState<"left" | "transferred">(
+    "left",
+  );
+  const [departedAt, setDepartedAt] = useState(todayYmd());
+  const [reason, setReason] = useState("");
+  const [done, setDone] = useState(false);
+
+  if (lifecycle === "left" || lifecycle === "transferred") {
+    return (
+      <DepartureInfoBlock row={row} lifecycle={lifecycle} />
+    );
+  }
+
+  if (!canDepart) return null;
+
+  async function onDepart(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      await mark.mutateAsync({
+        studentId: row.studentId,
+        departureType,
+        departedAt,
+        reason: reason.trim() || undefined,
+      });
+      setDone(true);
+    } catch {
+      /* below */
+    }
+  }
+
+  if (done) {
+    return (
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Student marked as <strong>{departureType}</strong>. Records are kept;
+        they no longer appear as enrolled.
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+      <h4 className="text-sm font-bold text-[#0F2544] font-[family-name:var(--font-heading)]">
+        Leaving school
+      </h4>
+      <p className="mt-1 text-xs text-gray-600">
+        Keeps the full student record and marks them as no longer enrolled. You
+        can still upload TC/LC under Certificates later.
+      </p>
+      <form onSubmit={onDepart} className="mt-3 space-y-3">
+        <AuthSelect
+          label="Departure type"
+          name="departureType"
+          value={departureType}
+          onChange={(e) =>
+            setDepartureType(e.target.value as "left" | "transferred")
+          }
+          options={[
+            { value: "left", label: "Left school" },
+            { value: "transferred", label: "Transferred to another school" },
+          ]}
+        />
+        <AuthField
+          label="Departure date"
+          name="departedAt"
+          type="date"
+          required
+          value={departedAt}
+          onChange={(e) => setDepartedAt(e.target.value)}
+        />
+        <AuthField
+          label="Reason (optional)"
+          name="departureReason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+        {mark.isError ? (
+          <p className="text-sm text-red-600">{mark.error.message}</p>
+        ) : null}
+        <button
+          type="submit"
+          disabled={mark.isPending}
+          className="w-full rounded-xl border border-amber-400 bg-white py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+        >
+          {mark.isPending ? "Saving…" : "Mark student as departed"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function DepartureInfoBlock({
+  row,
+  lifecycle,
+}: {
+  row: StudentAdmission;
+  lifecycle: string;
+}) {
+  const departedAt = row.student?.departedAt;
+  const departureReason = row.student?.departureReason;
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
+      <p className="font-semibold capitalize text-[#0F2544]">
+        Student: {lifecycle.replace("_", " ")}
+      </p>
+      {departedAt ? (
+        <p className="mt-1 text-gray-600">
+          Departure date: {formatDate(departedAt)}
+        </p>
+      ) : null}
+      {departureReason ? (
+        <p className="mt-1 text-gray-600">Reason: {departureReason}</p>
+      ) : null}
+      <p className="mt-2 text-xs text-gray-500">
+        All inquiry, registration, and admission data is retained.
+      </p>
+    </div>
+  );
+}
+
 function AdmissionEditForm({ row }: { row: StudentAdmission }) {
   const update = useUpdateAdmissionMutation(row.id);
+  const academic = useAcademicOptionsQuery();
   const [status, setStatus] = useState<AdmissionStatus>(row.status);
-  const [className, setClassName] = useState(row.className);
-  const [section, setSection] = useState(row.section ?? "");
+  const [classId, setClassId] = useState("");
+  const [sectionId, setSectionId] = useState("");
   const [stream, setStream] = useState(row.stream ?? "");
   const [academicYear, setAcademicYear] = useState(row.academicYear ?? "");
 
   useEffect(() => {
     setStatus(row.status);
-    setClassName(row.className);
-    setSection(row.section ?? "");
+    const matched = matchClassSectionIds(
+      academic.data,
+      row.className,
+      row.section,
+    );
+    setClassId(matched?.classId ?? "");
+    setSectionId(matched?.sectionId ?? "");
     setStream(row.stream ?? "");
     setAcademicYear(row.academicYear ?? "");
-  }, [row]);
+  }, [row, academic.data]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     await update.mutateAsync({
       status,
-      className: className.trim(),
-      section: section.trim() || undefined,
+      ...(classId && sectionId ? { classId, sectionId } : {}),
       stream: stream.trim() || undefined,
       academicYear: academicYear.trim() || undefined,
     });
@@ -692,6 +900,14 @@ function AdmissionEditForm({ row }: { row: StudentAdmission }) {
             {studentLabel(row)}
           </dd>
         </div>
+        <div className="pt-1">
+          <Link
+            href={`/dashboard/admin/students/classes?studentId=${row.studentId}`}
+            className="text-xs font-semibold text-amber-800 hover:underline"
+          >
+            Open student profile →
+          </Link>
+        </div>
         {row.registration ? (
           <div className="flex justify-between gap-4">
             <dt className="text-gray-500">Registration</dt>
@@ -700,6 +916,8 @@ function AdmissionEditForm({ row }: { row: StudentAdmission }) {
         ) : null}
       </dl>
 
+      <MarkStudentDepartureBlock row={row} />
+
       <AuthSelect
         label="Status"
         name="status"
@@ -707,19 +925,14 @@ function AdmissionEditForm({ row }: { row: StudentAdmission }) {
         onChange={(e) => setStatus(e.target.value as AdmissionStatus)}
         options={STATUS_EDIT}
       />
-      <AuthField
-        label="Class"
-        name="className"
-        required
-        value={className}
-        onChange={(e) => setClassName(e.target.value)}
-      />
-      <AuthField
-        label="Section"
-        name="section"
-        value={section}
-        onChange={(e) => setSection(e.target.value)}
-      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ClassSectionPicker
+          classId={classId}
+          sectionId={sectionId}
+          onClassChange={setClassId}
+          onSectionChange={setSectionId}
+        />
+      </div>
       <AuthField
         label="Stream"
         name="stream"

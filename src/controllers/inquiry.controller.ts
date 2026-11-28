@@ -14,6 +14,7 @@ import { asyncHandler } from "../utils/async-handler.js";
 import { ApiError } from "../utils/api-error.js";
 import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
+import { seedParentsFromLegacyNames } from "../utils/student-parents.js";
 import {
   getParamId,
   getValidatedBody,
@@ -21,6 +22,13 @@ import {
 } from "../utils/request.js";
 
 type AuthUser = { id: string };
+
+function splitStudentName(full: string): { firstName: string; lastName: string } {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "Unknown", lastName: "Unknown" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
 
 export const listInquiries = asyncHandler(async (req: Request, res: Response) => {
   const query = getValidatedQuery<{
@@ -95,6 +103,7 @@ export const createInquiry = asyncHandler(async (req: Request, res: Response) =>
   const user = req.user as AuthUser;
   const body = getValidatedBody<{
     firstName: string;
+    middleName?: string;
     lastName: string;
     inquirerName: string;
     fatherName?: string;
@@ -123,6 +132,7 @@ export const createInquiry = asyncHandler(async (req: Request, res: Response) =>
       id: studentId,
       userId: body.userId,
       firstName: body.firstName,
+      middleName: body.middleName,
       lastName: body.lastName,
       fatherName: body.fatherName,
       motherName: body.motherName,
@@ -137,7 +147,15 @@ export const createInquiry = asyncHandler(async (req: Request, res: Response) =>
       academicYear: body.academicYear,
       rollNumber: body.rollNumber,
       lifecycleStatus: "inquiry",
+      createdByUserId: user.id,
     });
+
+    await seedParentsFromLegacyNames(
+      tx,
+      studentId,
+      body.fatherName,
+      body.motherName,
+    );
 
     await tx.insert(studentInquiries).values({
       id: inquiryId,
@@ -152,6 +170,49 @@ export const createInquiry = asyncHandler(async (req: Request, res: Response) =>
       notes: body.notes,
       status: "open",
       createdByUserId: user.id,
+    });
+  });
+
+  const [inquiry] = await db
+    .select()
+    .from(studentInquiries)
+    .where(eq(studentInquiries.id, inquiryId));
+
+  res.status(201).json({ success: true, data: inquiry });
+});
+
+export const createPublicInquiry = asyncHandler(async (req: Request, res: Response) => {
+  const body = getValidatedBody<{
+    studentName: string;
+    intendedClass: string;
+    phone: string;
+  }>(req);
+
+  const { firstName, lastName } = splitStudentName(body.studentName);
+  const studentId = createId();
+  const inquiryId = createId();
+  const notes = "Submitted via website admission form";
+
+  await db.transaction(async (tx) => {
+    await tx.insert(students).values({
+      id: studentId,
+      firstName,
+      lastName,
+      phone: body.phone,
+      className: body.intendedClass,
+      lifecycleStatus: "inquiry",
+    });
+
+    await tx.insert(studentInquiries).values({
+      id: inquiryId,
+      inquiryNumber: createDocumentNumber("INQ"),
+      studentId,
+      inquirerName: body.studentName.trim(),
+      phone: body.phone,
+      intendedClass: body.intendedClass,
+      notes,
+      status: "open",
+      createdByUserId: null,
     });
   });
 

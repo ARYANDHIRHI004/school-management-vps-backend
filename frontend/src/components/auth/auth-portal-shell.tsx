@@ -13,6 +13,8 @@ type AuthPortalShellProps = {
   badge?: string;
   variant?: "login" | "signup";
   illustration?: string;
+  /** Wider content column (e.g. student profile dashboard). */
+  wide?: boolean;
 };
 
 export function AuthPortalShell({
@@ -22,6 +24,7 @@ export function AuthPortalShell({
   badge = "Student & Admin Portal",
   variant = "login",
   illustration = "/images/illustrations/undraw_online-learning_tgmv.svg",
+  wide = false,
 }: AuthPortalShellProps) {
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#F8FAFC]">
@@ -121,7 +124,7 @@ export function AuthPortalShell({
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="w-full max-w-md"
+            className={`w-full ${wide ? "max-w-3xl" : "max-w-md"}`}
           >
             <div className="mb-6 text-center lg:hidden">
               <h1 className="font-[family-name:var(--font-heading)] text-2xl font-extrabold text-[#0F2544]">

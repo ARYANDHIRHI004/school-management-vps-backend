@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { db } from "../db/index.js";
 import {
   leavingCertificates,
+  studentAdmissions,
   students,
   transferCertificates,
 } from "../db/schema/students.js";
@@ -138,8 +139,24 @@ export const uploadTransferCertificate = asyncHandler(
 
       await tx
         .update(students)
-        .set({ lifecycleStatus: "transferred" })
+        .set({
+          lifecycleStatus: "transferred",
+          enrollmentStatus: "transferred",
+          recordStatus: "inactive",
+          departedAt: body.issueDate,
+          departureReason: body.reason?.trim() || null,
+        })
         .where(eq(students.id, body.studentId));
+
+      await tx
+        .update(studentAdmissions)
+        .set({ status: "completed" })
+        .where(
+          and(
+            eq(studentAdmissions.studentId, body.studentId),
+            eq(studentAdmissions.status, "active"),
+          ),
+        );
     });
 
     const [row] = await db
@@ -290,8 +307,24 @@ export const uploadLeavingCertificate = asyncHandler(
 
       await tx
         .update(students)
-        .set({ lifecycleStatus: "left" })
+        .set({
+          lifecycleStatus: "left",
+          enrollmentStatus: "left",
+          recordStatus: "withdrawn",
+          departedAt: body.issueDate,
+          departureReason: body.reason?.trim() || null,
+        })
         .where(eq(students.id, body.studentId));
+
+      await tx
+        .update(studentAdmissions)
+        .set({ status: "completed" })
+        .where(
+          and(
+            eq(studentAdmissions.studentId, body.studentId),
+            eq(studentAdmissions.status, "active"),
+          ),
+        );
     });
 
     const [row] = await db

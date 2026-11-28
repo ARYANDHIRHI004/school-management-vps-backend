@@ -17,6 +17,7 @@ import {
 import {
   convertInquiryToRegistration,
   createInquiry,
+  createPublicInquiry,
   getInquiry,
   listInquiries,
   updateInquiry,
@@ -31,8 +32,42 @@ import {
   getMyStudentProfile,
   getStudentById,
   linkStudentToUser,
+  updateStudentRecord,
 } from "../controllers/student-profile.controller.js";
+import {
+  createStudentParent,
+  deleteStudentParent,
+  listStudentParents,
+  updateStudentParent,
+} from "../controllers/student-parent.controller.js";
 import { provisionPortalAccess } from "../controllers/student-portal.controller.js";
+import {
+  listDepartedStudents,
+  markStudentDeparture,
+} from "../controllers/student-departure.controller.js";
+import {
+  listStudentClassSectionOptions,
+  listStudentRecords,
+} from "../controllers/student-records.controller.js";
+import {
+  getAcademicOptions,
+  listSchoolSections,
+} from "../controllers/academic-reference.controller.js";
+import {
+  assignSectionStaff,
+  getClassSectionDetail,
+  listClassOverview,
+  removeSectionStaff,
+} from "../controllers/class-overview.controller.js";
+import {
+  createSchoolClass,
+  createSchoolSection,
+  deleteSchoolClass,
+  deleteSchoolSection,
+  listSchoolClassesWithSections,
+  updateSchoolClass,
+  updateSchoolSection,
+} from "../controllers/school-class.controller.js";
 import { attachSession, requireAuth } from "../middlewares/auth.middleware.js";
 import { requireAdmin } from "../middlewares/rbac.middleware.js";
 import { certificateUpload } from "../middlewares/upload.middleware.js";
@@ -41,14 +76,25 @@ import {
   admissionListQuerySchema,
   bifurcationSearchQuerySchema,
   certificateListQuerySchema,
+  assignSectionStaffSchema,
+  classSectionDetailQuerySchema,
   convertInquirySchema,
+  markStudentDepartureSchema,
   createAdmissionSchema,
   createBifurcationSchema,
   createInquirySchema,
+  publicInquirySchema,
   createRegistrationSchema,
+  departedStudentsListQuerySchema,
+  studentRecordsListQuerySchema,
+  schoolSectionsQuerySchema,
   idParamSchema,
   inquiryListQuerySchema,
   linkStudentUserSchema,
+  studentParentBodySchema,
+  studentParentIdParamSchema,
+  updateStudentParentSchema,
+  updateStudentRecordSchema,
   provisionPortalAccessSchema,
   registrationListQuerySchema,
   updateAdmissionSchema,
@@ -57,16 +103,158 @@ import {
   uploadCertificateMetaSchema,
   uploadLeavingCertificateMetaSchema,
 } from "../validators/student.validator.js";
+import {
+  createSchoolClassSchema,
+  createSchoolSectionSchema,
+  schoolClassIdParamSchema,
+  schoolClassNestedParamSchema,
+  schoolSectionIdParamSchema,
+  updateSchoolClassSchema,
+  updateSchoolSectionSchema,
+} from "../validators/academic.validator.js";
 
 const studentRouter = Router();
 
+studentRouter.post(
+  "/inquiries/public",
+  validate({ body: publicInquirySchema }),
+  createPublicInquiry,
+);
+
 studentRouter.use(attachSession, requireAuth);
+
+studentRouter.get(
+  "/records",
+  requireAdmin,
+  validate({ query: studentRecordsListQuerySchema }),
+  listStudentRecords,
+);
+studentRouter.get(
+  "/records/class-section-options",
+  requireAdmin,
+  listStudentClassSectionOptions,
+);
+studentRouter.get(
+  "/classes/overview",
+  requireAdmin,
+  listClassOverview,
+);
+studentRouter.get(
+  "/classes/section",
+  requireAdmin,
+  validate({ query: classSectionDetailQuerySchema }),
+  getClassSectionDetail,
+);
+studentRouter.post(
+  "/classes/teachers",
+  requireAdmin,
+  validate({ body: assignSectionStaffSchema }),
+  assignSectionStaff,
+);
+studentRouter.delete(
+  "/classes/teachers/:id",
+  requireAdmin,
+  validate({ params: idParamSchema }),
+  removeSectionStaff,
+);
+studentRouter.get(
+  "/academic-options",
+  requireAdmin,
+  getAcademicOptions,
+);
+studentRouter.get(
+  "/sections",
+  requireAdmin,
+  validate({ query: schoolSectionsQuerySchema }),
+  listSchoolSections,
+);
+
+studentRouter.get(
+  "/school-classes",
+  requireAdmin,
+  listSchoolClassesWithSections,
+);
+studentRouter.post(
+  "/school-classes",
+  requireAdmin,
+  validate({ body: createSchoolClassSchema }),
+  createSchoolClass,
+);
+studentRouter.patch(
+  "/school-classes/:id",
+  requireAdmin,
+  validate({ params: schoolClassIdParamSchema, body: updateSchoolClassSchema }),
+  updateSchoolClass,
+);
+studentRouter.delete(
+  "/school-classes/:id",
+  requireAdmin,
+  validate({ params: schoolClassIdParamSchema }),
+  deleteSchoolClass,
+);
+studentRouter.post(
+  "/school-classes/:classId/sections",
+  requireAdmin,
+  validate({
+    params: schoolClassNestedParamSchema,
+    body: createSchoolSectionSchema,
+  }),
+  createSchoolSection,
+);
+studentRouter.patch(
+  "/school-sections/:id",
+  requireAdmin,
+  validate({
+    params: schoolSectionIdParamSchema,
+    body: updateSchoolSectionSchema,
+  }),
+  updateSchoolSection,
+);
+studentRouter.delete(
+  "/school-sections/:id",
+  requireAdmin,
+  validate({ params: schoolSectionIdParamSchema }),
+  deleteSchoolSection,
+);
 
 studentRouter.get("/me", getMyStudentProfile);
 studentRouter.get(
   "/profile/:id",
   validate({ params: idParamSchema }),
   getStudentById,
+);
+studentRouter.patch(
+  "/profile/:id",
+  requireAdmin,
+  validate({ params: idParamSchema, body: updateStudentRecordSchema }),
+  updateStudentRecord,
+);
+studentRouter.get(
+  "/profile/:id/parents",
+  requireAdmin,
+  validate({ params: idParamSchema }),
+  listStudentParents,
+);
+studentRouter.post(
+  "/profile/:id/parents",
+  requireAdmin,
+  validate({ params: idParamSchema, body: studentParentBodySchema }),
+  createStudentParent,
+);
+studentRouter.patch(
+  "/parents/:parentId",
+  requireAdmin,
+  validate({
+    params: studentParentIdParamSchema,
+    body: updateStudentParentSchema,
+  }),
+  updateStudentParent,
+);
+studentRouter.delete(
+  "/parents/:parentId",
+  requireAdmin,
+  validate({ params: studentParentIdParamSchema }),
+  deleteStudentParent,
 );
 
 studentRouter.get(
@@ -142,6 +330,19 @@ studentRouter.patch(
   requireAdmin,
   validate({ params: idParamSchema, body: updateAdmissionSchema }),
   updateAdmission,
+);
+
+studentRouter.post(
+  "/departures",
+  requireAdmin,
+  validate({ body: markStudentDepartureSchema }),
+  markStudentDeparture,
+);
+studentRouter.get(
+  "/departures",
+  requireAdmin,
+  validate({ query: departedStudentsListQuerySchema }),
+  listDepartedStudents,
 );
 
 studentRouter.get(

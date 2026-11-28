@@ -19,6 +19,7 @@ export type StudentInquiry = {
 
 export type CreateInquiryInput = {
   firstName: string;
+  middleName?: string;
   lastName: string;
   inquirerName: string;
   fatherName?: string;

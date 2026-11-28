@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   date,
   index,
   pgEnum,
@@ -9,6 +10,12 @@ import {
   integer,
 } from "drizzle-orm/pg-core";
 import { user } from "./auth.js";
+import {
+  academicYears,
+  schoolClasses,
+  schoolHouses,
+  schoolSections,
+} from "./academic.js";
 
 export const studentLifecycleStatusEnum = pgEnum("student_lifecycle_status", [
   "inquiry",
@@ -36,30 +43,96 @@ export const admissionStatusEnum = pgEnum("admission_status", [
   "cancelled",
 ]);
 
+/** Active / inactive / graduated (record status). */
+export const studentRecordStatusEnum = pgEnum("student_record_status", [
+  "active",
+  "inactive",
+  "graduated",
+  "withdrawn",
+]);
+
+/** Current enrollment with the school. */
+export const studentEnrollmentStatusEnum = pgEnum("student_enrollment_status", [
+  "not_enrolled",
+  "enrolled",
+  "transferred",
+  "graduated",
+  "left",
+]);
+
+export const parentRelationshipEnum = pgEnum("parent_relationship", [
+  "father",
+  "mother",
+  "guardian",
+  "other",
+]);
+
 export const students = pgTable(
   "students",
   {
     id: text("id").primaryKey(),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    admissionNumber: text("admission_number").unique(),
+    rollNumber: text("roll_number"),
     firstName: text("first_name").notNull(),
+    middleName: text("middle_name"),
     lastName: text("last_name").notNull(),
-    fatherName: text("father_name"),
-    motherName: text("mother_name"),
+    dateOfBirth: date("date_of_birth"),
+    gender: text("gender"),
+    bloodGroup: text("blood_group"),
+    profilePhotoUrl: text("profile_photo"),
+    recordStatus: studentRecordStatusEnum("status")
+      .default("active")
+      .notNull(),
+    enrollmentStatus: studentEnrollmentStatusEnum("enrollment_status")
+      .default("not_enrolled")
+      .notNull(),
     email: text("email"),
     phone: text("phone"),
-    gender: text("gender"),
-    dateOfBirth: date("date_of_birth"),
+    addressLine1: text("address_line_1"),
+    addressLine2: text("address_line_2"),
+    city: text("city"),
+    state: text("state"),
+    postalCode: text("postal_code"),
+    country: text("country"),
+    /** @deprecated Prefer addressLine1 — kept for backward compatibility */
     address: text("address"),
+    admissionDate: date("admission_date"),
+    academicYearId: text("academic_year_id").references(() => academicYears.id, {
+      onDelete: "set null",
+    }),
+    classId: text("class_id").references(() => schoolClasses.id, {
+      onDelete: "set null",
+    }),
+    sectionId: text("section_id").references(() => schoolSections.id, {
+      onDelete: "set null",
+    }),
+    houseId: text("house_id").references(() => schoolHouses.id, {
+      onDelete: "set null",
+    }),
+    previousSchool: text("previous_school"),
+    previousClass: text("previous_class"),
+    /** Denormalized labels — used when lookup rows are not set */
     className: text("class_name"),
     section: text("section"),
     stream: text("stream"),
     academicYear: text("academic_year"),
-    rollNumber: text("roll_number"),
     registrationNumber: text("registration_number").unique(),
-    admissionNumber: text("admission_number").unique(),
+    /** @deprecated Use student_parents — kept for quick display */
+    fatherName: text("father_name"),
+    motherName: text("mother_name"),
     lifecycleStatus: studentLifecycleStatusEnum("lifecycle_status")
       .default("inquiry")
       .notNull(),
+    departedAt: date("departed_at"),
+    departureReason: text("departure_reason"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    deletedAt: timestamp("deleted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -69,11 +142,47 @@ export const students = pgTable(
   (table) => [
     index("students_user_id_idx").on(table.userId),
     index("students_lifecycle_status_idx").on(table.lifecycleStatus),
+    index("students_record_status_idx").on(table.recordStatus),
+    index("students_enrollment_status_idx").on(table.enrollmentStatus),
     index("students_class_section_stream_idx").on(
       table.className,
       table.section,
       table.stream,
     ),
+    index("students_deleted_at_idx").on(table.deletedAt),
+  ],
+);
+
+export const studentParents = pgTable(
+  "student_parents",
+  {
+    id: text("id").primaryKey(),
+    studentId: text("student_id")
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    relationship: parentRelationshipEnum("relationship").notNull(),
+    firstName: text("first_name").notNull(),
+    middleName: text("middle_name"),
+    lastName: text("last_name"),
+    email: text("email"),
+    phone: text("phone"),
+    occupation: text("occupation"),
+    addressLine1: text("address_line_1"),
+    addressLine2: text("address_line_2"),
+    city: text("city"),
+    state: text("state"),
+    postalCode: text("postal_code"),
+    country: text("country"),
+    isPrimaryContact: boolean("is_primary_contact").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("student_parents_student_id_idx").on(table.studentId),
+    index("student_parents_relationship_idx").on(table.relationship),
   ],
 );
 
@@ -253,12 +362,36 @@ export const studentBifurcations = pgTable(
 
 export const studentsRelations = relations(students, ({ one, many }) => ({
   user: one(user, { fields: [students.userId], references: [user.id] }),
+  academicYear: one(academicYears, {
+    fields: [students.academicYearId],
+    references: [academicYears.id],
+  }),
+  schoolClass: one(schoolClasses, {
+    fields: [students.classId],
+    references: [schoolClasses.id],
+  }),
+  schoolSection: one(schoolSections, {
+    fields: [students.sectionId],
+    references: [schoolSections.id],
+  }),
+  schoolHouse: one(schoolHouses, {
+    fields: [students.houseId],
+    references: [schoolHouses.id],
+  }),
   inquiries: many(studentInquiries),
   registrations: many(studentRegistrations),
   admissions: many(studentAdmissions),
   transferCertificates: many(transferCertificates),
   leavingCertificates: many(leavingCertificates),
   bifurcations: many(studentBifurcations),
+  parents: many(studentParents),
+}));
+
+export const studentParentsRelations = relations(studentParents, ({ one }) => ({
+  student: one(students, {
+    fields: [studentParents.studentId],
+    references: [students.id],
+  }),
 }));
 
 export const studentInquiriesRelations = relations(

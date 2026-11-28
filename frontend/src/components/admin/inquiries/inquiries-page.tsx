@@ -311,7 +311,13 @@ function ModalOverlay({
 function CreateInquiryModal({ onClose }: { onClose: () => void }) {
   const create = useCreateInquiryMutation();
   const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [fatherName, setFatherName] = useState("");
+  const [motherName, setMotherName] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [inquirerName, setInquirerName] = useState("");
   const [inquirerTouched, setInquirerTouched] = useState(false);
   const [phone, setPhone] = useState("");
@@ -332,8 +338,15 @@ function CreateInquiryModal({ onClose }: { onClose: () => void }) {
     try {
       await create.mutateAsync({
         firstName: firstName.trim(),
+        middleName: middleName.trim() || undefined,
         lastName: lastName.trim(),
         inquirerName: inquirerName.trim(),
+        fatherName: fatherName.trim() || undefined,
+        motherName: motherName.trim() || undefined,
+        address:
+          [addressLine1.trim(), city.trim(), postalCode.trim()]
+            .filter(Boolean)
+            .join(", ") || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         intendedClass: intendedClass.trim() || undefined,
@@ -358,11 +371,47 @@ function CreateInquiryModal({ onClose }: { onClose: () => void }) {
           onChange={(e) => setFirstName(e.target.value)}
         />
         <AuthField
+          label="Middle name"
+          name="middleName"
+          value={middleName}
+          onChange={(e) => setMiddleName(e.target.value)}
+        />
+        <AuthField
           label="Last name"
           name="lastName"
           required
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
+        />
+        <AuthField
+          label="Father's name"
+          name="fatherName"
+          value={fatherName}
+          onChange={(e) => setFatherName(e.target.value)}
+        />
+        <AuthField
+          label="Mother's name"
+          name="motherName"
+          value={motherName}
+          onChange={(e) => setMotherName(e.target.value)}
+        />
+        <AuthField
+          label="Address"
+          name="addressLine1"
+          value={addressLine1}
+          onChange={(e) => setAddressLine1(e.target.value)}
+        />
+        <AuthField
+          label="City"
+          name="city"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+        />
+        <AuthField
+          label="PIN code"
+          name="postalCode"
+          value={postalCode}
+          onChange={(e) => setPostalCode(e.target.value)}
         />
         <AuthField
           label="Inquirer name"

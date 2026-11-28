@@ -18,8 +18,8 @@ import {
   toAdmissionDto,
   type AdmissionWithRelationsRow,
 } from "../utils/admission-enrichment.js";
-import { createDocumentNumber } from "../utils/document-number.js";
 import { createId } from "../utils/ids.js";
+import { resolveClassSectionPlacement } from "../services/academic-placement.service.js";
 import {
   getParamId,
   getValidatedBody,
@@ -37,6 +37,7 @@ export const listAdmissions = asyncHandler(async (req: Request, res: Response) =
     status?: "active" | "completed" | "cancelled";
     studentId?: string;
     search?: string;
+    lifecycle?: "inquiry" | "registered" | "admitted" | "transferred" | "left";
   }>(req);
 
   const scopedStudentId = await resolveScopedStudentId(req, query.studentId);
@@ -47,6 +48,9 @@ export const listAdmissions = asyncHandler(async (req: Request, res: Response) =
   }
   if (query.status) {
     filters.push(eq(studentAdmissions.status, query.status));
+  }
+  if (query.lifecycle) {
+    filters.push(eq(students.lifecycleStatus, query.lifecycle));
   }
   if (query.search) {
     const pattern = `%${query.search}%`;
@@ -113,13 +117,18 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
     studentId: string;
     registrationId?: string;
     admissionDate: string;
-    admissionNumber?: string;
-    className: string;
-    section?: string;
+    admissionNumber: string;
+    classId: string;
+    sectionId: string;
     stream?: string;
     academicYear?: string;
     portalAccess?: { email: string; password: string; name?: string };
   }>(req);
+
+  const placement = await resolveClassSectionPlacement(
+    body.classId,
+    body.sectionId,
+  );
 
   const [student] = await db
     .select()
@@ -135,7 +144,16 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
 
   await assertApprovedRegistration(body.studentId);
 
-  const admissionNumber = body.admissionNumber ?? createDocumentNumber("ADM");
+  const admissionNumber = body.admissionNumber.trim();
+  const [numberTaken] = await db
+    .select({ id: studentAdmissions.id })
+    .from(studentAdmissions)
+    .where(eq(studentAdmissions.admissionNumber, admissionNumber))
+    .limit(1);
+  if (numberTaken) {
+    throw new ApiError(409, "Admission number is already in use");
+  }
+
   const id = createId();
 
   await db.transaction(async (tx) => {
@@ -145,8 +163,8 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
       studentId: body.studentId,
       registrationId: body.registrationId,
       admissionDate: body.admissionDate,
-      className: body.className,
-      section: body.section,
+      className: placement.className,
+      section: placement.section,
       stream: body.stream,
       academicYear: body.academicYear,
       status: "active",
@@ -157,11 +175,17 @@ export const createAdmission = asyncHandler(async (req: Request, res: Response) 
       .update(students)
       .set({
         lifecycleStatus: "admitted",
+        enrollmentStatus: "enrolled",
+        recordStatus: "active",
         admissionNumber,
-        className: body.className,
-        section: body.section,
+        admissionDate: body.admissionDate,
+        classId: placement.classId,
+        sectionId: placement.sectionId,
+        className: placement.className,
+        section: placement.section,
         stream: body.stream,
         academicYear: body.academicYear ?? student.academicYear,
+        updatedByUserId: user.id,
       })
       .where(eq(students.id, body.studentId));
   });
@@ -196,8 +220,8 @@ export const updateAdmission = asyncHandler(async (req: Request, res: Response) 
   const id = getParamId(req);
   const body = getValidatedBody<{
     status?: "active" | "completed" | "cancelled";
-    className?: string;
-    section?: string;
+    classId?: string;
+    sectionId?: string;
     stream?: string;
     academicYear?: string;
   }>(req);
@@ -210,18 +234,28 @@ export const updateAdmission = asyncHandler(async (req: Request, res: Response) 
 
   if (!existing) throw new ApiError(404, "Admission not found");
 
+  let placement: Awaited<ReturnType<typeof resolveClassSectionPlacement>> | null =
+    null;
+  if (body.classId && body.sectionId) {
+    placement = await resolveClassSectionPlacement(body.classId, body.sectionId);
+  }
+
   await db
     .update(studentAdmissions)
     .set({
       status: body.status ?? existing.status,
-      className: body.className ?? existing.className,
-      section: body.section ?? existing.section,
+      className: placement?.className ?? existing.className,
+      section: placement?.section ?? existing.section,
       stream: body.stream ?? existing.stream,
       academicYear: body.academicYear ?? existing.academicYear,
     })
     .where(eq(studentAdmissions.id, id));
 
-  if (body.className || body.section || body.stream || body.academicYear) {
+  if (
+    placement ||
+    body.stream !== undefined ||
+    body.academicYear !== undefined
+  ) {
     const [updated] = await db
       .select()
       .from(studentAdmissions)
@@ -232,8 +266,14 @@ export const updateAdmission = asyncHandler(async (req: Request, res: Response) 
       await db
         .update(students)
         .set({
-          className: updated.className,
-          section: updated.section,
+          ...(placement
+            ? {
+                classId: placement.classId,
+                sectionId: placement.sectionId,
+                className: placement.className,
+                section: placement.section,
+              }
+            : {}),
           stream: updated.stream,
           academicYear: updated.academicYear ?? undefined,
         })

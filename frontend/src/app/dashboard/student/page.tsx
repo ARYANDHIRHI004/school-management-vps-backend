@@ -1,18 +1,19 @@
 import { AuthPortalShell } from "@/components/auth/auth-portal-shell";
 import { DashboardRoleGuard } from "@/components/dashboard-role-guard";
-import { DashboardPanel } from "@/components/dashboard-panel";
+import { StudentPortalDashboard } from "@/components/student/student-portal-dashboard";
 
 export default function StudentDashboardPage() {
   return (
     <AuthPortalShell
       variant="login"
+      wide
       title="Student portal"
-      subtitle="View fees, notices, and your academic profile. Access is tied to your admitted student record on the server."
+      subtitle="Your profile, class details, parents, and admission summary from the school records."
       illustration="/images/illustrations/undraw_reading-a-book_4cap.svg"
       badge="Student"
     >
       <DashboardRoleGuard required="student">
-        <DashboardPanel portal="student" />
+        <StudentPortalDashboard />
       </DashboardRoleGuard>
     </AuthPortalShell>
   );

@@ -7,6 +7,10 @@ export type AdmissionStudentSummary = {
   phone: string | null;
   email: string | null;
   lifecycleStatus: string | null;
+  enrollmentStatus?: string | null;
+  recordStatus?: string | null;
+  departedAt?: string | null;
+  departureReason?: string | null;
 };
 
 export type AdmissionRegistrationSummary = {
@@ -42,8 +46,9 @@ export type CreateAdmissionInput = {
   studentId: string;
   registrationId?: string;
   admissionDate: string;
-  className: string;
-  section?: string;
+  admissionNumber: string;
+  classId: string;
+  sectionId: string;
   stream?: string;
   academicYear?: string;
   portalAccess?: PortalAccessInput;
@@ -51,8 +56,8 @@ export type CreateAdmissionInput = {
 
 export type UpdateAdmissionInput = {
   status?: AdmissionStatus;
-  className?: string;
-  section?: string;
+  classId?: string;
+  sectionId?: string;
   stream?: string;
   academicYear?: string;
 };

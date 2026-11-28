@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, BookOpen, Users, CheckCircle, Send } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 const wings = [
   {
@@ -60,18 +61,33 @@ const itemVariants = {
 export default function AcademicWings() {
   const [form, setForm] = useState({ name: '', grade: '', phone: '' });
   const [toast, setToast] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!form.name || !form.grade || !form.phone) return;
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    setSubmitError(null);
+    try {
+      await apiFetch('/api/students/inquiries/public', {
+        method: 'POST',
+        body: JSON.stringify({
+          studentName: form.name.trim(),
+          intendedClass: form.grade,
+          phone: form.phone.trim(),
+        }),
+      });
       setToast(true);
       setForm({ name: '', grade: '', phone: '' });
       setTimeout(() => setToast(false), 3500);
-    }, 800);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : 'Could not submit enquiry. Please try again.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -216,6 +232,11 @@ export default function AcademicWings() {
                   required
                 />
               </div>
+              {submitError && (
+                <p className="text-sm text-red-200 bg-red-900/30 rounded-lg px-3 py-2" role="alert">
+                  {submitError}
+                </p>
+              )}
               <button
                 type="submit"
                 disabled={submitting}
